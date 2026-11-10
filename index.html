@@ -1,45 +1,2301 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><meta name="theme-color" content="#30224b"><title>Crypto Tower — Dragon City</title><style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#1a1430;font-family:system-ui;color:white;touch-action:none}#game{display:block;width:100%;height:100dvh;image-rendering:auto}.hud{position:absolute;top:calc(env(safe-area-inset-top) + 10px);left:12px;right:12px;display:flex;justify-content:space-between;pointer-events:none}.hud span{background:#2d234acb;border:2px solid #ffcf8a;border-radius:12px;padding:7px 9px;font-weight:900;text-shadow:2px 2px #51304b}.controls{position:absolute;bottom:calc(env(safe-area-inset-bottom) + 10px);left:15px;right:15px;display:flex;justify-content:space-between}.controls button{width:70px;height:70px;border:3px solid #ffe4a4;border-radius:24px;background:#3d306bbd;color:white;font-size:43px;touch-action:none}.tiltbar{position:absolute;top:calc(env(safe-area-inset-top) + 62px);left:50%;transform:translateX(-50%);display:flex;gap:6px;align-items:center;background:#251b46d9;border:2px solid #ffd78b;border-radius:14px;padding:5px 7px;max-width:95vw;font-size:12px;z-index:2;white-space:nowrap;font-size:12px}.tiltbar button{border:0;border-radius:8px;background:#ffdc87;color:#34234e;font-weight:800;padding:7px}.tiltbar input{width:68px;accent-color:#ffcc72}.tiltbar.hidden{display:none}.overlay{position:absolute;inset:0;background:#120d28bd;display:grid;place-items:center;padding:22px}.hidden{display:none}.panel{text-align:center;max-width:360px;background:linear-gradient(#464078,#28204e);border:5px solid #ffd78b;border-radius:25px;padding:24px 20px;box-shadow:0 9px #9e5267}.panel h1{font-size:49px;line-height:.92;color:#ffd078;text-shadow:4px 5px #ad5366;margin:15px 0}.panel p{line-height:1.5}.panel button{background:linear-gradient(#ffe68c,#efa557);border:3px solid #fff0b4;border-radius:16px;padding:13px 30px;font-weight:900;font-size:24px;color:#4e2c50}</style></head><body><canvas id="game"></canvas><div class="hud"><span id="floor">ЭТАЖ 1</span><span id="coins">🪙 0</span><span id="best">🏆 0</span></div><div class="controls" id="controls"><button id="left">◀</button><button id="right">▶</button></div><div class="tiltbar hidden" id="tiltbar"><span id="tiltstatus">Наклон: выкл.</span><input id="sensitivity" type="range" min="1" max="10" value="5" aria-label="Чувствительность"><button id="calibrate">Центр</button><button id="toggleTilt">Выкл.</button></div><div id="overlay" class="overlay"><div class="panel"><small>DRAGON CITY • ARCADE</small><h1>CRYPTO<br>TOWER</h1><p id="message">Прыгай по крышам, избегай дракончиков! Коснись игрового поля, чтобы выстрелить вверх.</p><button id="play">▶ ИГРАТЬ</button><p><button id="enableTilt" style="font-size:17px;padding:10px 13px">📱 Включить наклон</button></p><p id="tiltHelp" style="font-size:12px">Разреши датчики движения. Держи телефон перед собой, наклоняй верх влево/вправо и нажми «Центр».</p><p><small>Автопрыжки · наклон iPhone · касание = выстрел · края соединены</small></p></div></div><script>
-(()=>{const c=document.getElementById('game'),g=c.getContext('2d');const W=360,H=740;c.width=W;c.height=H;g.imageSmoothingEnabled=false;const $=id=>document.getElementById(id);let best=0;try{best=+(localStorage.getItem('crypto_tower_best')||0)}catch(e){}$('best').textContent='🏆 '+best;let enemies=[],shots=[],p,platforms,coins,particles,camera,topY,score,count,run=false,last=0,t=0,seed=1;const keys={left:false,right:false};let tiltEnabled=false,tiltValue=0,tiltCenter=0,tiltSeen=false,tiltRaw=0;function rnd(){seed=(Math.imul(seed,1664525)+1013904223)|0;return(seed>>>0)/4294967296}function rand(a,b){return a+(b-a)*rnd()}function R(x,y,w,h,color){g.fillStyle=color;g.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))}function oval(x,y,rx,ry,col){g.fillStyle=col;g.beginPath();g.ellipse(x,y,rx,ry,0,0,7);g.fill()}function tri(x,y,w,h,col){g.fillStyle=col;g.beginPath();g.moveTo(x,y);g.lineTo(x+w/2,y-h);g.lineTo(x+w,y);g.fill()}function newPlatform(prev){topY-=rand(62,80);let w=rand(66,96),x=Math.max(27,Math.min(W-w-27,prev+rand(-120,120)));if(rnd()<.27)x=rand(28,W-w-28);let kind=rnd()<.17?'wood':'grass';platforms.push({x,y:topY,w,kind,spike:rnd()<.09&&topY<400,dx:rnd()<.12?(rnd()<.5?-.28:.28):0});if(rnd()<.78)coins.push({x:x+w/2,y:topY-26,got:false});if(rnd()<.19&&topY<380)enemies.push({x:rand(45,315),y:topY-rand(22,62),baseY:topY-rand(22,62),vx:rand(.35,.9)*(rnd()<.5?-1:1),phase:rand(0,6.28),alive:true});return x}function start(){seed=Date.now()|0;platforms=[{x:76,y:650,w:208,kind:'grass',spike:false,dx:0}];coins=[];particles=[];enemies=[];shots=[];topY=650;let x=145;for(let i=0;i<18;i++)x=newPlatform(x);p={x:165,y:595,w:25,h:35,vx:0,vy:-10,face:1};camera=0;score=1;count=0;t=0;last=0;run=true;$('overlay').classList.add('hidden');requestAnimationFrame(loop)}function bg(){
-const sky=g.createLinearGradient(0,0,0,H);sky.addColorStop(0,'#142a55');sky.addColorStop(.42,'#57558f');sky.addColorStop(.78,'#d88ca4');sky.addColorStop(1,'#f6bb91');g.fillStyle=sky;g.fillRect(0,0,W,H);
-// Fixed world-space skyline: buildings remain below as the player climbs.
-const horizon=520-camera;
-if(horizon>-500&&horizon<H+350){
-const sunY=horizon-95;const halo=g.createRadialGradient(265,sunY,8,265,sunY,135);halo.addColorStop(0,'#ffe9aa99');halo.addColorStop(1,'#ffe9aa00');g.fillStyle=halo;g.fillRect(90,sunY-140,270,280);
-oval(266,sunY,55,55,'#ffdc9e');
-for(let layer=0;layer<3;layer++){let base=horizon+65+layer*62;let color=['#8c668d','#594e80','#293e6b'][layer];for(let j=0;j<10;j++){let bx=j*49-25+layer*17,bh=65+((j*59+layer*31)%115);R(bx,base-bh,46,bh+250,color);R(bx+3,base-bh-4,40,4,layer===2?'#23375f':'#b781a0');for(let wy=base-bh+13;wy<Math.min(H+15,base+110);wy+=17)for(let wx=bx+7;wx<bx+43;wx+=13){let lit=((j*13+wy*3+wx+Math.floor(t/95))%7)<4;R(wx,wy,6,9,lit?'#ffdc94':'#657096')}}}
-}
-// Higher sky remains clean, with soft clouds and stars rather than repeating buildings.
-for(let i=0;i<17;i++){let sx=(i*91+33)%W,sy=((i*127+40+camera*.025)%530+530)%530;let twinkle=.5+.5*Math.sin(t*.045+i*4);g.globalAlpha=.28+twinkle*.5;oval(sx,sy,1.1,1.1,'#fff2dc')}g.globalAlpha=1;
-for(let i=0;i<8;i++){let cx=((i*129+t*(.035+i%3*.015))%520)-70;let cy=((i*109+camera*.045)%550+550)%550;g.globalAlpha=.12;oval(cx,cy,35,8,'#fff4ef');oval(cx+22,cy-4,27,9,'#fff4ef');g.globalAlpha=1}
-}
-function walls(){for(let side=0;side<2;side++){let x=side?W-22:0;R(x,0,22,H,'#583b59');R(x+3,0,16,H,'#a95e69');for(let y=-((camera*.5)%28);y<H;y+=28){R(x,y,22,3,'#e19a7d');R(x+10,y+3,2,25,'#784455')}for(let y=70;y<H;y+=170){R(x+4,y,14,34,'#392a50');R(x+6,y+3,10,27,'#ffcc77');R(x+8,y+6,6,20,'#fff0ae');R(x+5,y+34,12,3,'#342e4e')}}}function platform(a){let y=a.y-camera;if(y<-35||y>H+35)return;let x=a.x,w=a.w;if(a.kind==='grass'){R(x+5,y+5,w-10,16,'#6b4661');R(x+3,y+3,w-6,11,'#a76567');R(x,y-5,w,10,'#55995a');R(x,y-8,w,6,'#a5e97b');for(let i=7;i<w-4;i+=14){R(x+i,y-9,6,3,'#d9f5a0');R(x+i+3,y+4,4,5,'#d38870');R(x+i,y+13,7,2,'#493b52')}}else{R(x+4,y+4,w-8,16,'#86516a');R(x,y-5,w,11,'#d99568');R(x,y-8,w,5,'#ffe1a0');for(let i=12;i<w;i+=19)R(x+i,y+6,3,9,'#a76268')}if(a.spike){let sx=x+w/2-15;R(sx,y-7,30,4,'#8b435e');for(let i=0;i<4;i++)tri(sx+i*7.5,y-7,7.5,16,'#ff9fae')}}function coin(o){if(o.got)return;let y=o.y-camera+Math.sin(t*.09+o.x)*2;if(y<-25||y>H+25)return;oval(o.x,y,11,13,'#9f583e');oval(o.x-2,y-2,10,12,'#ffe083');oval(o.x-2,y-2,7,9,'#f2b544');R(o.x-4,y-9,3,12,'#fff5b2');R(o.x+2,y-8,3,10,'#fff0a5')}function hero(){
-const x=p.x,y=p.y-camera,hop=Math.sin(t*.26)*1.2;
-g.save();g.translate(x+12.5,y+18);if(p.face<0)g.scale(-1,1);
-// Soft outline and rounded illustrated figure, with arms, sneakers and face.
-g.lineJoin='round';g.lineCap='round';
-function shape(points,fill,stroke='#44365b',lw=1.4){g.beginPath();points(g);g.fillStyle=fill;g.fill();if(stroke){g.lineWidth=lw;g.strokeStyle=stroke;g.stroke()}}
-shape(q=>{q.ellipse(0,16,11,3,0,0,7)},'#1d244e55',null);
-shape(q=>{q.moveTo(-8,7);q.lineTo(-9,15+hop);q.lineTo(-2,15+hop);q.lineTo(0,6);q.closePath()},'#3d528f');
-shape(q=>{q.moveTo(2,7);q.lineTo(2,15-hop);q.lineTo(9,15-hop);q.lineTo(8,6);q.closePath()},'#38568f');
-shape(q=>{q.roundRect(-11,13+hop,10,4,2)},'#fff7e8');shape(q=>{q.roundRect(1,13-hop,11,4,2)},'#fff7e8');
-shape(q=>{q.moveTo(-9,-4);q.quadraticCurveTo(-14,1,-11,10);q.lineTo(10,10);q.quadraticCurveTo(14,1,9,-4);q.closePath()},'#56b4d7');
-shape(q=>{q.moveTo(-9,-3);q.lineTo(-13,3);q.lineTo(-11,9);q.lineTo(-8,8);q.lineTo(-7,0);q.closePath()},'#f1ae83');
-shape(q=>{q.moveTo(9,-3);q.lineTo(13,3);q.lineTo(12,9);q.lineTo(9,8);q.lineTo(7,0);q.closePath()},'#f1ae83');
-shape(q=>{q.ellipse(0,-10,10,12,0,0,7)},'#f6bf90');
-shape(q=>{q.moveTo(-10,-15);q.quadraticCurveTo(-8,-24,2,-22);q.quadraticCurveTo(10,-23,11,-15);q.lineTo(10,-12);q.quadraticCurveTo(3,-17,-7,-12);q.closePath()},'#6b3c42');
-shape(q=>{q.roundRect(-12,-22,24,7,3)},'#d45c64');shape(q=>{q.roundRect(-5,-27,13,8,3)},'#e46c70');
-shape(q=>{q.ellipse(4,-10,1.2,1.8,0,0,7)},'#282d47',null);
-shape(q=>{q.moveTo(2,-5);q.quadraticCurveTo(5,-3,7,-5)},'#a96062',null);
-g.restore();
-}
-function burst(x,y){for(let i=0;i<9;i++)particles.push({x,y,vx:rand(-2,2),vy:rand(-3,0),life:22})}function draw(){bg();walls();for(const a of platforms)platform(a);for(const o of coins)coin(o);for(const q of particles)R(q.x,q.y-camera,3,3,'#ffe4a2');for(const e of enemies)drawDragon(e);for(const b of shots)drawShot(b);hero();if(p.x<0){g.save();g.translate(W,0);hero();g.restore()}else if(p.x+p.w>W){g.save();g.translate(-W,0);hero();g.restore()}}function end(){run=false;$('message').innerHTML='Этаж: <b>'+score+'</b> · Монеты: <b>'+count+'</b><br>Рекорд: <b>'+best+'</b>';$('play').textContent='↻ ЕЩЁ РАЗ';$('overlay').classList.remove('hidden')}function update(dt){t+=dt;let old=p.y+p.h,dir=Number(keys.right)-Number(keys.left);if(!dir&&tiltEnabled&&tiltSeen){let delta=tiltRaw-tiltCenter;let dead=2.5;let strength=Number($("sensitivity").value);dir=Math.abs(delta)<dead?0:Math.max(-1,Math.min(1,(Math.abs(delta)-dead)/(24-strength*1.4)))*Math.sign(delta)}if(dir)p.face=Math.sign(dir);p.vx=dir*4.4;p.x+=p.vx*dt;if(p.x>W)p.x=-p.w;else if(p.x+p.w<0)p.x=W;p.vy=Math.min(13,p.vy+.39*dt);p.y+=p.vy*dt;for(const a of platforms)if(a.dx){a.x+=a.dx*dt;if(a.x<25||a.x+a.w>W-25)a.dx*=-1}if(p.vy>0)for(const a of platforms)if(old<=a.y+6&&p.y+p.h>=a.y&&[p.x,p.x-W,p.x+W].some(px=>px+p.w>a.x+6&&px<a.x+a.w-6)){if(a.spike&&p.x+p.w>a.x+a.w/2-14&&p.x<a.x+a.w/2+14){end();return}p.y=a.y-p.h;p.vy=-11.8;burst(p.x+12,a.y);break}for(const o of coins)if(!o.got&&Math.min(Math.abs(p.x+12-o.x),Math.abs(p.x+12-o.x-W),Math.abs(p.x+12-o.x+W))<19&&Math.abs(p.y+15-o.y)<28){o.got=true;count++;burst(o.x,o.y)}if(p.y-camera<285)camera=p.y-285;score=Math.max(score,Math.floor((650-p.y)/74)+1);if(score>best){best=score;try{localStorage.setItem('crypto_tower_best',String(best))}catch(e){}}$('floor').textContent='ЭТАЖ '+score;$('coins').textContent='🪙 '+count;$('best').textContent='🏆 '+best;while(topY>camera-170){let prev=platforms[platforms.length-1];newPlatform(prev.x)}platforms=platforms.filter(a=>a.y<camera+H+90);coins=coins.filter(a=>a.y<camera+H+90);particles=particles.filter(q=>{q.x+=q.vx*dt;q.y+=q.vy*dt;q.vy+=.13*dt;return --q.life>0});for(const e of enemies){if(!e.alive)continue;e.x+=e.vx*dt;if(e.x<-28)e.x=W+24;if(e.x>W+28)e.x=-24;e.y=e.baseY+Math.sin(t*.09+e.phase)*9;if(Math.abs(p.y+15-e.y)<21&&[p.x+12,p.x+12-W,p.x+12+W].some(px=>Math.abs(px-e.x)<23)){burst(p.x+12,p.y+15);end();return}}for(const b of shots){b.y-=10.5*dt;b.life-=dt;for(const e of enemies){if(e.alive&&Math.abs(b.y-e.y)<20&&[b.x,b.x-W,b.x+W].some(x=>Math.abs(x-e.x)<24)){e.alive=false;b.life=0;count+=3;burst(e.x,e.y)}}}shots=shots.filter(b=>b.life>0&&b.y>camera-60);enemies=enemies.filter(e=>e.alive&&e.y<camera+H+80);if(p.y-camera>H+55)end()}function loop(ms){if(!run)return;let dt=last?Math.min(2,(ms-last)/16.67):1;last=ms;update(dt);draw();if(run)requestAnimationFrame(loop)}for(const [id,key]of [['left','left'],['right','right']]){let el=$(id);el.addEventListener('pointerdown',e=>{e.preventDefault();keys[key]=true;el.setPointerCapture(e.pointerId)});for(const ev of ['pointerup','pointercancel','lostpointercapture'])el.addEventListener(ev,()=>keys[key]=false)}addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='a')keys.left=true;if(e.key==='ArrowRight'||e.key==='d')keys.right=true});addEventListener('keyup',e=>{if(e.key==='ArrowLeft'||e.key==='a')keys.left=false;if(e.key==='ArrowRight'||e.key==='d')keys.right=false});function onOrientation(e){if(typeof e.gamma!=="number")return;tiltRaw=e.gamma;if(!tiltSeen){tiltCenter=tiltRaw;tiltSeen=true}if(tiltEnabled){$('tiltstatus').textContent='📱 '+Math.round(tiltRaw-tiltCenter)+'°'}}
-$('enableTilt').onclick=async()=>{try{if(!('DeviceOrientationEvent' in window))throw Error('Датчик наклона недоступен');if(typeof DeviceOrientationEvent.requestPermission==='function'){const result=await DeviceOrientationEvent.requestPermission();if(result!=='granted')throw Error('Доступ к датчикам не разрешён')}window.addEventListener('deviceorientation',onOrientation);tiltSeen=false;tiltEnabled=true;$('tiltbar').classList.remove('hidden');$('toggleTilt').textContent='Вкл.';$('tiltHelp').textContent='Наклон включён! Нажми «Центр» в удобном положении. Стрелки тоже работают.';setTimeout(()=>{if(!tiltSeen)$('tiltHelp').textContent='Нет данных датчика. Открой игру по HTTPS в Safari и разреши доступ к движению.'},1800)}catch(err){$('tiltHelp').textContent=err.message+' — можно играть стрелками.'}};
-$('calibrate').onclick=()=>{if(tiltSeen){tiltCenter=tiltRaw;$('tiltstatus').textContent='📱 0°'}};
-$('toggleTilt').onclick=()=>{tiltEnabled=!tiltEnabled;$('toggleTilt').textContent=tiltEnabled?'Вкл.':'Выкл.';$('tiltstatus').textContent=tiltEnabled?'📱 Наклон':'Наклон: выкл.'};
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#4f8f33">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ProfiClick">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<title>ProfiClick v7.6.25 Compact Radar Locate</title>
+<style>
+:root{--g:#5b9638;--g2:#2f6623;--bg:#eef7eb;--card:#fff;--ink:#172033;--muted:#717988;--line:#dfead8;--blue:#2478ff;--yellow:#e0b955}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink)}
+.app{width:100%;max-width:430px;height:100%;margin:0 auto;background:linear-gradient(180deg,#eff8ec,#fbfdf9);position:relative;overflow:hidden}
+.header{position:absolute;left:10px;right:10px;top:calc(env(safe-area-inset-top) + 8px);height:62px;background:linear-gradient(135deg,var(--g),var(--g2));border-radius:22px;color:#fff;display:flex;align-items:center;gap:9px;padding:9px 11px;z-index:20;box-shadow:0 16px 34px rgba(47,102,35,.18)}
+.brand{font-size:24px;font-weight:820;letter-spacing:-.025em;flex:1}.rolePill{height:34px;border-radius:999px;background:rgba(255,255,255,.16);display:flex;align-items:center;padding:0 10px;font-size:11px;font-weight:950}
+.langGroup{display:flex;gap:4px;background:rgba(255,255,255,.12);border-radius:999px;padding:3px}.langChip{width:30px;height:30px;border:0;border-radius:999px;background:transparent;color:#fff;font-size:10px;font-weight:950}.langChip.active{background:rgba(255,255,255,.26)}
+.swipeWrap{height:100%;width:200%;display:flex;transform:translateX(-50%);transition:transform .28s cubic-bezier(.2,.8,.2,1)}.screen{width:50%;height:100%;position:relative;overflow:hidden;padding:calc(env(safe-area-inset-top) + 82px) 10px calc(env(safe-area-inset-bottom) + 14px)}
+.mapScreen{padding:0}.map{position:absolute;inset:0;background:linear-gradient(90deg,rgba(88,129,75,.13) 1px,transparent 1px) 0 0/44px 44px,linear-gradient(rgba(88,129,75,.13) 1px,transparent 1px) 0 0/44px 44px,#eaf3e6}
+.map:before{content:"";position:absolute;inset:-60px;background:linear-gradient(28deg,transparent 0 41%,#fff 41.2% 43.6%,transparent 43.8%),linear-gradient(108deg,transparent 0 46%,#fff 46.2% 48.5%,transparent 48.7%),linear-gradient(-15deg,transparent 0 58%,rgba(255,255,255,.82) 58.2% 60.2%,transparent 60.4%),linear-gradient(72deg,transparent 0 35%,rgba(255,255,255,.75) 35.2% 37.2%,transparent 37.4%);opacity:.95}
+.road{position:absolute;background:#fff;border-radius:999px;box-shadow:0 0 0 3px rgba(212,225,205,.9)}.r1{height:16px;left:-30px;right:-30px;top:44%;transform:rotate(-8deg)}.r2{height:14px;left:-40px;right:-40px;top:68%;transform:rotate(12deg)}.r3{width:16px;top:-40px;bottom:-40px;left:52%;transform:rotate(9deg)}.r4{width:14px;top:-50px;bottom:-50px;left:24%;transform:rotate(-16deg)}
+.topStats{position:absolute;left:10px;right:10px;top:calc(env(safe-area-inset-top) + 82px);z-index:5;display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}.stat{background:rgba(255,255,255,.90);backdrop-filter:blur(12px);border:1px solid var(--line);border-radius:16px;padding:7px 6px;box-shadow:0 10px 24px rgba(35,63,31,.08);text-align:center}.stat b{display:block;font-size:15px;color:#2f6f21}.stat span{font-size:9px;color:var(--muted);font-weight:900}
+.aiCard{position:absolute;left:10px;right:10px;top:calc(env(safe-area-inset-top) + 142px);z-index:6;background:rgba(255,255,255,.92);border:1px solid var(--line);border-radius:16px;padding:8px 10px;box-shadow:0 12px 28px rgba(35,63,31,.10);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.aiCard b{display:inline;font-size:12px}.aiCard span{display:inline;font-size:10px;color:var(--muted);font-weight:850;margin-left:5px}
+.marker{position:absolute;z-index:3;display:flex;align-items:center;justify-content:center;animation:floaty 4s ease-in-out infinite}.car{width:38px;height:26px;border-radius:12px;background:linear-gradient(var(--g),var(--g2));box-shadow:0 12px 26px rgba(31,41,55,.16);position:relative}.car:before,.car:after{content:"";position:absolute;bottom:-4px;width:8px;height:8px;border-radius:50%;background:#263242}.car:before{left:7px}.car:after{right:7px}.carLabel{position:absolute;top:-18px;left:50%;transform:translateX(-50%);background:#fff;border:1px solid var(--line);border-radius:999px;padding:2px 6px;font-size:9px;font-weight:950;color:#2f6f21;box-shadow:0 6px 12px rgba(0,0,0,.08)}
+.orderDot{width:30px;height:30px;border-radius:12px;background:linear-gradient(#56a0ff,#2478ff);box-shadow:0 12px 26px rgba(31,41,55,.16);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:950}.urgent{background:linear-gradient(#f5c653,#d89b11)}
+.m1{left:22%;top:32%}.m2{left:70%;top:25%;animation-delay:.7s}.m3{left:52%;top:50%;animation-delay:1.2s}.m4{left:16%;top:62%}.m5{left:78%;top:56%;animation-delay:1.9s}.m6{left:38%;top:42%}.m7{left:62%;top:68%;animation-delay:.4s}.m8{left:30%;top:74%}
+.bottomSheet{position:absolute;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom) + 10px);z-index:7;background:rgba(255,255,255,.95);backdrop-filter:blur(16px);border:1px solid var(--line);border-radius:26px;padding:8px 10px;box-shadow:0 22px 54px rgba(35,63,31,.16);transition:max-height .24s ease,padding .24s ease;max-height:88px;overflow:hidden}.bottomSheet.open{max-height:220px}.handle{width:42px;height:5px;border-radius:999px;background:#d5e4cf;margin:0 auto 8px}.sheetTitle{font-size:17px;font-weight:900;letter-spacing:-.025em;margin-bottom:0}.sheetContent{margin-top:10px}.bottomSheet:not(.open) .sheetContent{display:none}.modeRow{display:grid;grid-template-columns:1fr 1fr;gap:8px}.modeBtn{border:1px solid var(--line);background:#fff;border-radius:15px;padding:9px 8px;font-size:12px;font-weight:950;color:var(--muted)}.modeBtn.active{background:#eaf6e4;color:#2f6f21;border-color:#cfe7c9}.filterRow{display:flex;gap:7px;overflow:hidden;margin-top:10px}.filterChip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 9px;color:var(--muted);font-size:11px;font-weight:950;white-space:nowrap}.filterChip.active{background:#eaf6e4;color:#2f6f21;border-color:#cfe7c9}.rangeRow{display:flex;align-items:center;gap:10px;margin-top:10px}.rangeRow span{font-size:12px;color:var(--muted);font-weight:900;min-width:56px}input[type=range]{width:100%;accent-color:var(--g)}.ctaRow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.cta{border:0;border-radius:16px;padding:11px 7px;font-size:13px;font-weight:950}.cta.main{background:linear-gradient(var(--g),var(--g2));color:#fff}.cta.light{background:#eef8e8;color:#2f6f21}
+.profile{overflow:auto;-webkit-overflow-scrolling:touch}.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:12px;margin-bottom:10px;box-shadow:0 10px 26px rgba(40,80,30,.05)}.profileTop{display:grid;grid-template-columns:70px 1fr;gap:12px;align-items:center}.ava{width:70px;height:70px;border-radius:24px;background:#eef8e8;color:#2f6f21;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:950}.name{font-size:22px;font-weight:900;letter-spacing:-.03em;margin:0}.meta{margin-top:3px;color:var(--muted);font-size:12px;font-weight:850}.pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.pill{border-radius:999px;background:#eef8e8;color:#2f6f21;padding:6px 9px;font-size:11px;font-weight:950}.pill.gray{background:#f1f4ef;color:#5f6b5a}.title{font-size:18px;font-weight:900;margin:0 0 9px}.actionGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.actionCard{border:1px solid var(--line);border-radius:18px;background:#fff;padding:12px;min-height:82px}.actionCard b{font-size:15px}.actionCard span{display:block;color:var(--muted);font-size:11px;font-weight:850;margin-top:5px;line-height:1.3}.bigButton{width:100%;border:0;border-radius:18px;background:linear-gradient(var(--g),var(--g2));color:#fff;font-size:15px;font-weight:950;padding:14px;margin-top:10px}.order{border:1px solid var(--line);border-radius:18px;background:#fff;padding:11px;margin-bottom:8px}.orderTop{display:flex;justify-content:space-between;font-size:13px;font-weight:950}.price{color:#2f6f21;font-size:16px}.orderMeta{color:var(--muted);font-size:12px;font-weight:850;margin-top:5px;line-height:1.35}.miniTabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:9px}.miniTab{border:1px solid var(--line);background:#fff;border-radius:14px;padding:9px 4px;color:var(--muted);font-size:11px;font-weight:950}.miniTab.active{background:#eaf6e4;color:#2f6f21;border-color:#cfe7c9}
+.pageDots{position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom) + 8px);transform:translateX(-50%);z-index:30;display:flex;gap:6px}.dot{width:7px;height:7px;border-radius:50%;background:rgba(23,32,51,.25)}.dot.active{background:#2f6f21;width:18px;border-radius:999px}.refresh{position:absolute;left:50%;top:calc(env(safe-area-inset-top) + 82px);transform:translate(-50%,-58px);z-index:40;background:#fff;border:1px solid var(--line);border-radius:999px;padding:8px 13px;font-size:12px;font-weight:950;color:#2f6f21;box-shadow:0 10px 24px rgba(35,63,31,.12);opacity:0;transition:.2s}.refresh.show{opacity:1;transform:translate(-50%,0)}.toast{position:absolute;left:18px;right:18px;bottom:calc(env(safe-area-inset-bottom) + 30px);background:#172033;color:#fff;border-radius:18px;padding:12px;text-align:center;font-size:13px;font-weight:850;display:none;z-index:50}.toast.show{display:block}@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}.rtlContent .profile .card{direction:rtl;text-align:right}.hide{display:none!important}
+</style>
 
-function drawDragon(e){let x=e.x,y=e.y-camera;if(y<-50||y>H+50)return;g.save();g.translate(x,y);if(e.vx<0)g.scale(-1,1);let flap=Math.sin(t*.36+e.phase);g.strokeStyle='#202b43';g.lineWidth=2;g.fillStyle='#6bc2ac';g.beginPath();g.moveTo(-8,-3);g.quadraticCurveTo(-23,-22-7*flap,-25,-3);g.quadraticCurveTo(-15,-6,-9,6);g.fill();g.stroke();g.fillStyle='#e5a879';g.beginPath();g.moveTo(4,0);g.quadraticCurveTo(23,-18-7*flap,23,4);g.lineTo(8,8);g.fill();g.stroke();g.fillStyle='#438d87';g.beginPath();g.ellipse(0,4,15,10,0,0,7);g.fill();g.stroke();g.beginPath();g.ellipse(11,-5,10,9,0,0,7);g.fill();g.stroke();g.fillStyle='#f9df9e';g.beginPath();g.ellipse(15,-6,3,3,0,0,7);g.fill();g.fillStyle='#1b243a';g.fillRect(16,-7,2,3);g.fillStyle='#f5bb7b';g.beginPath();g.moveTo(6,-12);g.lineTo(10,-22);g.lineTo(14,-13);g.fill();g.restore()}
-function drawShot(b){let y=b.y-camera;g.save();g.shadowColor='#ffe6a3';g.shadowBlur=15;oval(b.x,y,4,11,'#fff0b3');oval(b.x,y+7,2,10,'#f8a96a');g.restore()}
-function shoot(){if(!run)return;shots.push({x:(p.x+12)%W,y:p.y-10,life:90});}
-c.addEventListener('pointerdown',e=>{if(!run)return;e.preventDefault();shoot()},{passive:false});
-$('play').onclick=start;start();run=false;$('overlay').classList.remove('hidden');draw()})();
-</script></body></html>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+#realMap,#fallbackMap{position:absolute;inset:0;z-index:1}.map{background:#eaf3e6!important}.map.real #realMap{display:block}.map.real #fallbackMap{display:none}#realMap{display:none}#fallbackMap{display:block;background:linear-gradient(90deg,rgba(88,129,75,.13) 1px,transparent 1px) 0 0/44px 44px,linear-gradient(rgba(88,129,75,.13) 1px,transparent 1px) 0 0/44px 44px,#eaf3e6;overflow:hidden}#fallbackMap:before{content:"";position:absolute;inset:-60px;background:linear-gradient(28deg,transparent 0 41%,#fff 41.2% 43.6%,transparent 43.8%),linear-gradient(108deg,transparent 0 46%,#fff 46.2% 48.5%,transparent 48.7%),linear-gradient(-15deg,transparent 0 58%,rgba(255,255,255,.82) 58.2% 60.2%,transparent 60.4%),linear-gradient(72deg,transparent 0 35%,rgba(255,255,255,.75) 35.2% 37.2%,transparent 37.4%);opacity:.95}.map:before,.road,.map>.marker{display:none!important}.leaflet-control-container{display:none!important}.topStats,.aiCard,.bottomSheet{z-index:650!important}.pcVehicleIcon .pcCar,.fbCar{width:38px;height:26px;border-radius:12px;background:linear-gradient(#5b9638,#2f6623);box-shadow:0 10px 20px rgba(31,41,55,.20);position:relative}.pcVehicleIcon .pcCar:before,.pcVehicleIcon .pcCar:after,.fbCar:before,.fbCar:after{content:"";position:absolute;bottom:-4px;width:8px;height:8px;border-radius:50%;background:#263242}.pcVehicleIcon .pcCar:before,.fbCar:before{left:7px}.pcVehicleIcon .pcCar:after,.fbCar:after{right:7px}.pcOrderIcon .pcDot,.fbDot{width:30px;height:30px;border-radius:12px;background:linear-gradient(#56a0ff,#2478ff);box-shadow:0 10px 20px rgba(31,41,55,.20);border:2px solid #fff}.pcOrderIcon.urgent .pcDot,.fbDot.urgent{background:linear-gradient(#f5c653,#d89b11)}.fbMarker{position:absolute;z-index:4;animation:floaty 4s ease-in-out infinite}.fbLabel{position:absolute;top:-20px;left:50%;transform:translateX(-50%);background:#fff;border:1px solid var(--line);border-radius:999px;padding:2px 6px;font-size:9px;font-weight:950;color:#2f6f21;box-shadow:0 6px 12px rgba(0,0,0,.08)}.driverCard{position:absolute;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom) + 118px);z-index:900;background:#fff;border:1px solid var(--line);border-radius:22px;padding:12px;box-shadow:0 18px 44px rgba(35,63,31,.20);display:none}.driverCard.show{display:block}.driverTop{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.driverTop b{font-size:17px}.driverTop button{border:0;background:#f2f6ef;border-radius:999px;width:32px;height:32px;font-size:19px}.driverMeta{color:var(--muted);font-size:12px;font-weight:850;line-height:1.45;margin-top:5px}.driverGrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-top:10px}.driverMini{border:1px solid var(--line);border-radius:14px;background:#f7fbf3;padding:8px;text-align:center}.driverMini b{display:block;color:#2f6f21;font-size:13px}.driverMini span{font-size:10px;color:var(--muted);font-weight:900}.aiLive{position:absolute;left:10px;right:10px;top:calc(env(safe-area-inset-top) + 186px);z-index:650;background:rgba(23,32,51,.88);color:#fff;border-radius:16px;padding:9px 12px;font-size:12px;font-weight:850;box-shadow:0 14px 34px rgba(0,0,0,.18);opacity:0;transform:translateY(-8px);transition:.24s}.aiLive.show{opacity:1;transform:translateY(0)}
+</style>
+
+<style>
+/* v7506 Live Map full-screen fix */
+.mapScreen{padding:0!important;background:#eaf3e6!important}
+.map{position:absolute!important;inset:0!important;background:#eaf3e6!important;overflow:hidden!important}
+#realMap{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;z-index:1!important;background:#eaf3e6!important;display:block!important}
+#fallbackMap{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;z-index:0!important;background:#eaf3e6!important}
+.map.real #realMap{display:block!important}
+.leaflet-container{width:100%!important;height:100%!important;background:#eaf3e6!important}
+.leaflet-tile-container img{max-width:none!important}
+.leaflet-control-container{display:none!important}
+.map:before,.road,.map>.marker{display:none!important}
+.topStats{top:calc(env(safe-area-inset-top) + 82px)!important;z-index:650!important}
+.aiCard{top:calc(env(safe-area-inset-top) + 139px)!important;z-index:650!important}
+.aiLive{top:calc(env(safe-area-inset-top) + 178px)!important;z-index:660!important}
+.bottomSheet{left:10px!important;right:10px!important;bottom:calc(env(safe-area-inset-bottom) + 2px)!important;z-index:700!important;max-height:none!important;padding:8px 10px 10px!important;overflow:visible!important}
+.bottomSheet.open{max-height:none!important}
+.sheetContent{display:block!important;margin-top:0!important}
+.bottomSheet:not(.open) .sheetContent{display:block!important}
+.sheetTitle{display:none!important}
+.ctaRow{display:none!important}
+.driverCard{bottom:calc(env(safe-area-inset-bottom) + 112px)!important;z-index:920!important}
+.locBtn{position:absolute;right:14px;bottom:calc(env(safe-area-inset-bottom) + 138px);z-index:710;width:42px;height:42px;border:0;border-radius:999px;background:#fff;color:#2f6f21;font-size:18px;font-weight:900;box-shadow:0 12px 28px rgba(35,63,31,.18)}
+.pcVehicleIcon .pcCar{width:38px;height:26px;border-radius:12px;background:linear-gradient(#5b9638,#2f6623);box-shadow:0 10px 20px rgba(31,41,55,.20);position:relative}
+.pcVehicleIcon .pcCar:before,.pcVehicleIcon .pcCar:after{content:"";position:absolute;bottom:-4px;width:8px;height:8px;border-radius:50%;background:#263242}
+.pcVehicleIcon .pcCar:before{left:7px}.pcVehicleIcon .pcCar:after{right:7px}
+.pcOrderIcon .pcDot{width:30px;height:30px;border-radius:12px;background:linear-gradient(#56a0ff,#2478ff);box-shadow:0 10px 20px rgba(31,41,55,.20);border:2px solid #fff}
+.pcOrderIcon.urgent .pcDot{background:linear-gradient(#f5c653,#d89b11)}
+</style>
+
+
+<style>
+/* v7507 Gett-style vehicles + executor card */
+.pcVehicleIcon{background:transparent!important;border:0!important}
+.pcVehicleIcon .pcCar{width:46px!important;height:31px!important;border-radius:16px 16px 12px 12px!important;background:linear-gradient(180deg,#6cad4d,#2f6f21)!important;box-shadow:0 12px 24px rgba(24,55,20,.28)!important;position:relative!important;transform-origin:center center!important}
+.pcVehicleIcon .pcCar:before{content:""!important;position:absolute!important;left:8px!important;right:8px!important;top:4px!important;height:9px!important;border-radius:8px 8px 4px 4px!important;background:rgba(255,255,255,.74)!important;box-shadow:0 13px 0 rgba(255,255,255,.35)!important}
+.pcVehicleIcon .pcCar:after{content:""!important;position:absolute!important;left:4px!important;right:4px!important;bottom:-4px!important;height:8px!important;background:radial-gradient(circle at 6px 50%,#172033 0 4px,transparent 4.5px),radial-gradient(circle at calc(100% - 6px) 50%,#172033 0 4px,transparent 4.5px)!important}
+.pcVehicleIcon .pcLight{position:absolute;left:17px;right:17px;top:-3px;height:4px;border-radius:999px;background:#dff4d5}
+.pcVehicleIcon.busy .pcCar{background:linear-gradient(180deg,#f1c24d,#c98908)!important}.pcVehicleIcon.track .pcCar{background:linear-gradient(180deg,#4d97ff,#1869df)!important}.pcOrderIcon .pcDot{border-radius:14px!important}
+.driverCard{bottom:calc(env(safe-area-inset-bottom) + 116px)!important;border-radius:26px!important;padding:14px!important}.driverTop b{font-size:19px!important;letter-spacing:-.02em}.driverMeta{font-size:13px!important}.driverStatus{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.driverStatus span{border-radius:999px;background:#eef8e8;color:#2f6f21;padding:7px 9px;font-size:11px;font-weight:950}.selectDriverBtn{width:100%;margin-top:12px;border:0;border-radius:18px;padding:13px;background:linear-gradient(#5b9638,#2f6623);color:#fff;font-size:15px;font-weight:950}
+.orderFlow{position:absolute;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom) + 116px);z-index:940;background:#fff;border:1px solid var(--line);border-radius:26px;padding:14px;box-shadow:0 20px 52px rgba(35,63,31,.22);display:none}.orderFlow.show{display:block}.flowTitle{font-size:19px;font-weight:950;letter-spacing:-.025em;margin-bottom:8px}.flowStep{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #eef4ea}.flowStep:last-child{border-bottom:0}.flowDot{width:28px;height:28px;border-radius:50%;background:#eaf6e4;color:#2f6f21;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:950}.flowStep.active .flowDot{background:#2f6f21;color:#fff}.flowStep.done .flowDot{background:#5b9638;color:#fff}.flowText b{display:block;font-size:13px}.flowText span{display:block;font-size:11px;color:var(--muted);font-weight:850;margin-top:1px}.closeFlow{width:100%;margin-top:10px;border:0;border-radius:16px;padding:11px;background:#eef8e8;color:#2f6f21;font-weight:950}
+</style>
+
+<style>
+/* v7508: current user location marker + better center button */
+.locBtn{background:#fff!important;color:#2f6f21!important;font-size:22px!important;display:flex!important;align-items:center!important;justify-content:center!important}
+.locBtn.follow{background:#2f6f21!important;color:#fff!important}
+.userLocIcon{background:transparent!important;border:0!important}
+.userLocIcon .userPulse{width:54px;height:54px;border-radius:50%;background:rgba(44,132,255,.20);display:flex;align-items:center;justify-content:center;animation:userPulse 1.8s ease-in-out infinite}
+.userLocIcon .userDot{width:20px;height:20px;border-radius:50%;background:#2f84ff;border:4px solid #fff;box-shadow:0 6px 18px rgba(24,108,220,.35)}
+@keyframes userPulse{0%,100%{transform:scale(.92);opacity:.85}50%{transform:scale(1.08);opacity:1}}
+.geoHint{position:absolute;left:10px;right:10px;top:calc(env(safe-area-inset-top) + 220px);z-index:760;background:rgba(23,32,51,.9);color:#fff;border-radius:16px;padding:10px 12px;font-size:12px;font-weight:850;box-shadow:0 14px 34px rgba(0,0,0,.18);display:none}.geoHint.show{display:block}
+.selectDriverBtn{width:100%;margin-top:12px;border:0;border-radius:18px;padding:13px;background:linear-gradient(#5b9638,#2f6623);color:#fff;font-size:15px;font-weight:950}
+</style>
+
+<style>
+/* v7509 Live Orders */
+.mapScreen{padding:0!important;background:#eaf3e6!important}
+.map{position:absolute!important;inset:0!important;background:#eaf3e6!important;overflow:hidden!important}
+#realMap{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;z-index:1!important;background:#eaf3e6!important;display:block!important}
+#fallbackMap{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;z-index:0!important;background:#eaf3e6!important}
+.map.real #realMap{display:block!important}
+.leaflet-container{width:100%!important;height:100%!important;background:#eaf3e6!important}
+.leaflet-control-container{display:none!important}
+.map:before,.road,.map>.marker{display:none!important}
+.topStats{top:calc(env(safe-area-inset-top) + 82px)!important;z-index:650!important}
+.aiCard{top:calc(env(safe-area-inset-top) + 139px)!important;z-index:650!important}
+.aiLive{top:calc(env(safe-area-inset-top) + 178px)!important;z-index:660!important;font-size:12px!important}
+.bottomSheet{left:10px!important;right:10px!important;bottom:calc(env(safe-area-inset-bottom) + 2px)!important;z-index:700!important;max-height:none!important;padding:8px 10px 10px!important;overflow:visible!important}
+.sheetContent{display:block!important;margin-top:0!important}.bottomSheet:not(.open) .sheetContent{display:block!important}.sheetTitle{display:none!important}.ctaRow{display:none!important}
+.locBtn{position:absolute;right:14px;bottom:calc(env(safe-area-inset-bottom) + 138px);z-index:710;width:42px;height:42px;border:0;border-radius:999px;background:#fff;color:#2f6f21;font-size:18px;font-weight:900;box-shadow:0 12px 28px rgba(35,63,31,.18)}
+.pcVehicleIcon{background:transparent!important;border:0!important}
+.pcVehicleIcon .pcCar{width:44px;height:30px;border-radius:15px 15px 12px 12px;background:linear-gradient(180deg,#69a94a,#347024);box-shadow:0 12px 24px rgba(24,55,20,.26);position:relative}
+.pcVehicleIcon .pcCar:before{content:"";position:absolute;left:8px;right:8px;top:4px;height:9px;border-radius:8px 8px 4px 4px;background:rgba(255,255,255,.72);box-shadow:0 13px 0 rgba(255,255,255,.34)}
+.pcVehicleIcon .pcCar:after{content:"";position:absolute;left:4px;right:4px;bottom:-4px;height:8px;background:radial-gradient(circle at 6px 50%,#172033 0 4px,transparent 4.5px),radial-gradient(circle at calc(100% - 6px) 50%,#172033 0 4px,transparent 4.5px)}
+.pcVehicleIcon.busy .pcCar{background:linear-gradient(180deg,#f1c24d,#c98908)}
+.pcVehicleIcon.track .pcCar{background:linear-gradient(180deg,#4d97ff,#1869df)}
+.pcOrderIcon .pcDot{min-width:46px;height:34px;border-radius:16px;background:linear-gradient(#ffb84d,#df8508);border:2px solid #fff;box-shadow:0 12px 24px rgba(31,41,55,.23);color:#fff;font-size:11px;font-weight:950;display:flex;align-items:center;justify-content:center;padding:0 7px}
+.pcOrderIcon.good .pcDot{background:linear-gradient(#66b84d,#2f7922)}
+.pcOrderIcon.medium .pcDot{background:linear-gradient(#ffbd4f,#df8b10)}
+.pcOrderIcon.far .pcDot{background:linear-gradient(#ef6969,#c93434)}
+.orderCard{position:absolute;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom) + 116px);z-index:930;background:#fff;border:1px solid var(--line);border-radius:26px;padding:14px;box-shadow:0 20px 52px rgba(35,63,31,.22);display:none}
+.orderCard.show{display:block}
+.orderCardTop{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.orderCardTop button{border:0;background:#f2f6ef;border-radius:999px;width:32px;height:32px;font-size:19px;color:#1680ff}
+.orderBadge{display:inline-flex;border-radius:999px;background:#eaf6e4;color:#2f6f21;padding:6px 9px;font-size:11px;font-weight:950;margin-bottom:6px}
+.orderCard h3{font-size:20px;line-height:1.1;margin:0 0 8px;letter-spacing:-.025em}.orderGrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}.orderGrid div{border:1px solid var(--line);border-radius:15px;background:#f7fbf3;padding:9px;text-align:center}.orderGrid b{display:block;color:#2f6f21;font-size:15px}.orderGrid span{font-size:10px;color:var(--muted);font-weight:900}.orderInfo{margin-top:9px;color:var(--muted);font-size:12px;font-weight:850;line-height:1.35}.acceptOrderBtn{width:100%;margin-top:12px;border:0;border-radius:18px;padding:13px;background:linear-gradient(#5b9638,#2f6623);color:#fff;font-size:15px;font-weight:950}
+.mapLegend{position:absolute;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom) + 101px);z-index:690;background:rgba(255,255,255,.88);backdrop-filter:blur(12px);border:1px solid var(--line);border-radius:16px;padding:7px 8px;display:flex;gap:8px;justify-content:space-between;font-size:9px;font-weight:950;color:#5f6b5a;opacity:.92}
+.mapLegend span{display:flex;align-items:center;gap:4px}.mapLegend i{width:9px;height:9px;border-radius:50%;display:inline-block}.mapLegend .free{background:#3d8428}.mapLegend .busy{background:#d99a14}.mapLegend .track{background:#2478ff}.mapLegend .job{background:#ff9500}
+.orderFlow{position:absolute;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom) + 116px);z-index:940;background:#fff;border:1px solid var(--line);border-radius:26px;padding:14px;box-shadow:0 20px 52px rgba(35,63,31,.22);display:none}.orderFlow.show{display:block}.flowTitle{font-size:19px;font-weight:950;letter-spacing:-.025em;margin-bottom:8px}.flowStep{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #eef4ea}.flowStep:last-child{border-bottom:0}.flowDot{width:28px;height:28px;border-radius:50%;background:#eaf6e4;color:#2f6f21;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:950}.flowStep.active .flowDot{background:#2f6f21;color:#fff}.flowStep.done .flowDot{background:#5b9638;color:#fff}.flowText b{display:block;font-size:13px}.flowText span{display:block;font-size:11px;color:var(--muted);font-weight:850;margin-top:1px}.closeFlow{width:100%;margin-top:10px;border:0;border-radius:16px;padding:11px;background:#eef8e8;color:#2f6f21;font-weight:950}
+</style>
+
+
+<style>
+.fleetPanel{margin:10px 0;border:1px solid var(--line);background:#f8fbf5;border-radius:20px;padding:11px}
+.fleetHead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:9px}
+.fleetHead b{display:block;font-size:17px;font-weight:950;letter-spacing:-.02em}
+.fleetHead span{display:block;color:var(--muted);font-size:11px;font-weight:850;margin-top:2px}
+.fleetHead button{border:0;border-radius:15px;background:linear-gradient(#5b9638,#2f6623);color:#fff;font-size:12px;font-weight:950;padding:10px}
+.fleetStats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:9px}
+.fleetStats div{background:#fff;border:1px solid var(--line);border-radius:15px;padding:8px;text-align:center}
+.fleetStats b{display:block;color:#2f6f21;font-size:16px}.fleetStats span{font-size:9px;color:var(--muted);font-weight:900}
+.vehicleCard{background:#fff;border:1px solid var(--line);border-radius:17px;padding:10px;margin-bottom:8px}
+.vehicleTop{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.vehicleName{font-size:14px;font-weight:950}.vehicleNum{font-size:11px;color:var(--muted);font-weight:850;margin-top:2px}
+.vehicleStatus{border-radius:999px;padding:6px 8px;font-size:10px;font-weight:950;background:#eef8e8;color:#2f6f21;white-space:nowrap}
+.vehicleStatus.busy{background:#fff4df;color:#9a6700}.vehicleStatus.off{background:#f1f4ef;color:#5f6b5a}.vehicleStatus.paid{background:#e9f1ff;color:#1869df}
+.vehicleActions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px}
+.vehicleActions button{border:1px solid var(--line);border-radius:14px;background:#fff;padding:9px 6px;font-size:11px;font-weight:950;color:var(--ink)}
+.vehicleActions button.primary{background:#eaf6e4;color:#2f6f21;border-color:#cfe7c9}
+.slotModal{position:absolute;inset:0;z-index:2000;background:rgba(23,32,51,.35);display:none;align-items:flex-end;padding:10px}
+.slotModal.show{display:flex}.slotBox{width:100%;background:#fff;border-radius:26px;padding:16px;border:1px solid var(--line);box-shadow:0 24px 60px rgba(0,0,0,.25)}
+.slotBox h3{margin:0 0 8px;font-size:21px;letter-spacing:-.03em}.slotBox p{margin:0;color:var(--muted);font-size:13px;font-weight:850;line-height:1.35}
+.slotActions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}
+.slotActions button{border:0;border-radius:17px;padding:13px;font-size:14px;font-weight:950}
+#cancelSlotBtn{background:#f2f6ef;color:#5f6b5a}#paySlotBtn{background:linear-gradient(#5b9638,#2f6623);color:#fff}
+</style>
+
+
+<style>
+/* v7512: map-only overlays only on map page */
+body:not(.onMap) .mapLegend,
+body:not(.onMap) .locBtn,
+body:not(.onMap) .driverCard,
+body:not(.onMap) .orderCard,
+body:not(.onMap) .orderFlow,
+body:not(.onMap) .aiLive {
+  display:none!important;
+}
+</style>
+
+
+<style>
+/* v7513: legend no longer overlaps bottom sheet */
+.mapLegend{
+  bottom:calc(env(safe-area-inset-bottom) + 184px)!important;
+  left:12px!important;
+  right:12px!important;
+  z-index:690!important;
+  padding:6px 8px!important;
+  border-radius:15px!important;
+  box-shadow:0 10px 24px rgba(35,63,31,.12)!important;
+}
+.bottomSheet{
+  z-index:700!important;
+}
+.locBtn{
+  bottom:calc(env(safe-area-inset-bottom) + 218px)!important;
+}
+.driverCard,
+.orderCard,
+.orderFlow{
+  bottom:calc(env(safe-area-inset-bottom) + 198px)!important;
+}
+</style>
+
+
+<style>
+/* v7515: compact legend + bottom panel + working radius */
+.mapLegend{bottom:calc(env(safe-area-inset-bottom) + 174px)!important;left:12px!important;right:12px!important;padding:5px 7px!important;border-radius:14px!important;font-size:9px!important}
+.mapLegend i{width:8px!important;height:8px!important}
+.bottomSheet{bottom:calc(env(safe-area-inset-bottom) - 6px)!important}
+.locBtn{bottom:calc(env(safe-area-inset-bottom) + 210px)!important}
+.radiusInfo{display:flex;justify-content:space-between;align-items:center;margin-top:6px;color:#6b7280;font-weight:950;font-size:11px}
+.radiusInfo b{color:#2f6f21}
+</style>
+
+
+<style>
+.mapLegend{display:none!important}
+.bottomSheet{left:10px!important;right:10px!important;bottom:calc(env(safe-area-inset-bottom) - 4px)!important;padding:12px 10px 11px!important;border-radius:26px 26px 22px 22px!important}
+.sheetHandle{margin-bottom:9px!important}.filterRow,.chips,.tabs,.segment,.filterTabs,.viewTabs{display:none!important}
+.pcFleetTabs{display:grid;grid-template-columns:1fr 1fr 1fr 48px;gap:8px;margin-bottom:13px}
+.pcFleetTabs button{height:48px;border:1px solid var(--line);border-radius:18px;background:#fff;color:var(--ink);font-size:14px;font-weight:950;display:flex;align-items:center;justify-content:center;gap:6px}
+.pcFleetTabs button.active{background:#111827;color:#fff;border-color:#111827;box-shadow:0 10px 20px rgba(17,24,39,.16)}
+.radiusTitle{display:flex;justify-content:space-between;align-items:baseline;margin:0 4px 7px;font-size:15px;font-weight:900;color:var(--ink)}
+.radiusTitle b{color:#2f7d25}.radiusScale{display:flex;justify-content:space-between;margin:7px 4px 0;color:#111827;font-size:11px;font-weight:850}.radiusInfo{display:none!important}
+.pcOrderIcon .pcDot{min-width:42px!important;height:42px!important;border-radius:18px 18px 18px 5px!important;transform:rotate(-45deg);display:flex!important;align-items:center!important;justify-content:center!important;background:linear-gradient(#69b84b,#2f7d25)!important;border:3px solid #fff!important;box-shadow:0 12px 24px rgba(24,55,20,.24)!important}
+.pcOrderIcon .pcDot span{transform:rotate(45deg);font-size:10px;font-weight:950;color:#fff}.pcOrderIcon.pending .pcDot{background:linear-gradient(#ffd457,#e0a20e)!important}
+.pcVehicleIcon.busy .pcCar{background:linear-gradient(#dfe3df,#9ca3af)!important;opacity:.42!important;filter:grayscale(.25)}.pcVehicleIcon.busy{pointer-events:none!important}
+.pcVehicleIcon.temp .pcCar{background:linear-gradient(#ffd457,#e0a20e)!important;opacity:.65!important}.pcVehicleIcon.mine .pcCar{box-shadow:0 0 0 4px rgba(47,125,37,.18),0 12px 24px rgba(24,55,20,.26)!important}
+.pcVehiclePlate{position:absolute;left:50%;top:33px;transform:translateX(-50%);background:#fff;border:1px solid #9bd49a;color:#2f7d25;border-radius:7px;padding:2px 5px;font-size:9px;font-weight:950;white-space:nowrap;box-shadow:0 6px 12px rgba(0,0,0,.12)}
+.pcTopCards{position:absolute;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 96px);z-index:650;display:grid;grid-template-columns:1fr 1fr;gap:10px;pointer-events:none}
+.pcTopCard{background:rgba(255,255,255,.94);backdrop-filter:blur(12px);border:1px solid var(--line);border-radius:18px;padding:10px 12px;box-shadow:0 12px 24px rgba(35,63,31,.12)}
+.pcTopCard b{display:block;color:#111827;font-size:13px;font-weight:950}.pcTopCard span{display:block;margin-top:3px;color:#2f7d25;font-size:12px;font-weight:950}
+.pcLegendModal{position:absolute;inset:0;z-index:2200;background:rgba(17,24,39,.28);display:none;align-items:flex-end;padding:10px}.pcLegendModal.show{display:flex}
+.pcLegendBox{width:100%;background:#fff;border:1px solid var(--line);border-radius:26px;padding:15px;box-shadow:0 24px 60px rgba(0,0,0,.25)}
+.pcLegendHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.pcLegendHead b{font-size:20px;font-weight:950}.pcLegendHead button{border:0;background:#f2f6ef;border-radius:999px;width:34px;height:34px;font-size:20px;color:#1680ff}
+.pcLegendCols{display:grid;grid-template-columns:1fr 1fr;gap:14px}.pcLegendCols h4{margin:0 0 8px;font-size:13px}.pcLegendCols p{margin:8px 0;color:#4b5563;font-size:12px;font-weight:850;display:flex;align-items:center;gap:8px}
+.lgCar,.lgOrder{display:inline-block;width:16px;height:16px;border-radius:50%}.lgCar.free{background:#2f7d25}.lgCar.busy{background:#cfd4cf}.lgCar.track{background:#2478ff}.lgCar.temp{background:#e0a20e}.lgOrder.active{background:#2f7d25;border-radius:6px}.lgOrder.pending{background:#e0a20e;border-radius:6px}
+</style>
+
+
+<style>
+/* v7610 clean fleet UI */
+.pcTopCards{display:none!important}
+.pcVehiclePlate{display:none!important}
+.mapLegend{display:none!important}
+.bottomSheet{
+  left:10px!important;
+  right:10px!important;
+  bottom:calc(env(safe-area-inset-bottom) - 7px)!important;
+  padding:10px!important;
+  border-radius:24px 24px 20px 20px!important;
+}
+.sheetHandle{margin-bottom:8px!important}
+.bottomSheet .filterRow,
+.bottomSheet .chips,
+.bottomSheet .tabs,
+.bottomSheet .segment,
+.bottomSheet .filterTabs,
+.bottomSheet .viewTabs,
+.bottomSheet .pillRow,
+.bottomSheet .switchRow,
+.bottomSheet .sheetTitle,
+.bottomSheet [data-tab],
+.bottomSheet .radiusScale,
+.bottomSheet .radiusInfo{
+  display:none!important;
+}
+.pcFleetTabs{
+  display:grid!important;
+  grid-template-columns:1fr 1fr 1fr 44px!important;
+  gap:7px!important;
+  margin-bottom:10px!important;
+}
+.pcFleetTabs button{
+  height:42px!important;
+  border-radius:16px!important;
+  font-size:13px!important;
+  background:#fff!important;
+  color:var(--ink)!important;
+  border:1px solid var(--line)!important;
+  box-shadow:none!important;
+}
+.pcFleetTabs button.active{
+  background:#eaf6e4!important;
+  color:#2f7d25!important;
+  border-color:#cfe7c9!important;
+}
+.radiusTitle{
+  margin:2px 4px 6px!important;
+  font-size:14px!important;
+  display:flex!important;
+  justify-content:space-between!important;
+  align-items:center!important;
+}
+.radiusTitle span:first-child{font-size:0!important}
+.radiusTitle span:first-child::after{content:"Радиус";font-size:14px;color:var(--ink);font-weight:950}
+.radiusTitle b{font-size:14px!important;color:#2f7d25!important}
+.rangeRow{
+  display:grid!important;
+  grid-template-columns:auto 1fr auto!important;
+  gap:8px!important;
+  align-items:center!important;
+  margin:0 4px!important;
+}
+.rangeRow label{font-size:0!important}
+.rangeRow b{font-size:14px!important;color:#6b7280!important}
+.pcOrderIcon .pcDot span{font-size:0!important}
+.pcOrderIcon .pcDot span::after{content:"📦";font-size:17px}
+.pcOrderIcon .pcDot{
+  min-width:38px!important;
+  width:38px!important;
+  height:38px!important;
+  border-radius:15px 15px 15px 5px!important;
+}
+.pcOrderIcon.pending .pcDot span::after{content:"📦"}
+.subscriptionRules{
+  margin:10px 0;
+  border:1px solid var(--line);
+  background:#f8fbf5;
+  border-radius:20px;
+  padding:10px;
+  display:grid;
+  gap:7px;
+}
+.subscriptionRules div{
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:15px;
+  padding:9px 10px;
+}
+.subscriptionRules b{display:block;font-size:14px;color:var(--ink);font-weight:950}
+.subscriptionRules span{display:block;margin-top:2px;font-size:11px;color:var(--muted);font-weight:850}
+body.standardPlan #addVehicleBtn{
+  pointer-events:none!important;
+  opacity:.45!important;
+  filter:grayscale(1)!important;
+}
+</style>
+
+
+<style>
+.hideByV7611{display:none!important}
+body.standardPlan #fleetList .vehicleCard:nth-child(n+2){display:none!important}
+body.standardPlan #addVehicleBtn,#addVehicleBtn.lockedAdd{background:#eef1ec!important;color:#9ca3af!important;border:1px solid #dfe7dc!important;box-shadow:none!important;filter:grayscale(1)!important}
+.fleetPanel .fleetHead b::after{content:" · стандарт";color:#6b7280;font-size:11px;font-weight:900}
+.fleetStats div:nth-child(2) b{font-size:0!important}.fleetStats div:nth-child(2) b::after{content:"1";font-size:16px;color:#2f6f21}
+.fleetStats div:nth-child(2) span{font-size:0!important}.fleetStats div:nth-child(2) span::after{content:"машина";font-size:9px;color:var(--muted);font-weight:900}
+.upgradeModal{position:absolute;inset:0;z-index:2400;background:rgba(17,24,39,.34);display:none;align-items:flex-end;padding:10px}
+.upgradeModal.show{display:flex}
+.upgradeBox{width:100%;background:#fff;border:1px solid var(--line);border-radius:28px;padding:18px 16px 16px;box-shadow:0 24px 64px rgba(0,0,0,.26);position:relative}
+.upgradeClose{position:absolute;right:12px;top:12px;width:34px;height:34px;border:0;border-radius:999px;background:#f2f6ef;color:#1680ff;font-size:20px;font-weight:900}
+.upgradeBox h3{margin:0 42px 8px 0;font-size:22px;line-height:1.1;letter-spacing:-.03em}
+.upgradeBox p{margin:0 0 12px;color:var(--muted);font-size:13px;font-weight:850;line-height:1.35}
+.upgradePlans{display:grid;gap:8px;margin:12px 0}.upgradePlans div{border:1px solid var(--line);border-radius:16px;padding:10px;background:#fff}
+.upgradePlans div.active{border-color:#cfe7c9;background:#f1faed}.upgradePlans b{display:block;font-size:15px;color:var(--ink);font-weight:950}.upgradePlans span{display:block;margin-top:2px;color:var(--muted);font-size:12px;font-weight:850}
+.upgradeBtn{width:100%;border:0;border-radius:18px;padding:14px;background:linear-gradient(#5b9638,#2f6623);color:#fff;font-size:15px;font-weight:950}
+</style>
+
+<style>
+/* v7613: base v7611 + only geolocation button lower */
+.locBtn{
+  bottom:calc(env(safe-area-inset-bottom) + 175px)!important;
+  right:18px!important;
+  z-index:760!important;
+}
+</style>
+
+
+<style>
+/* v7618: customer sees customer tools only, executor sees fleet */
+.customerToolsOnly{
+  display:none;
+  margin:10px 0;
+  border:1px solid var(--line);
+  border-radius:24px;
+  background:#fff;
+  padding:12px;
+}
+.customerToolsGrid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:9px;
+  margin-bottom:10px;
+}
+.customerToolCard{
+  border:1px solid var(--line);
+  border-radius:18px;
+  background:#fff;
+  padding:12px;
+}
+.customerToolCard b{
+  display:block;
+  font-size:17px;
+  font-weight:950;
+  color:var(--ink);
+}
+.customerToolCard span{
+  display:block;
+  margin-top:4px;
+  font-size:12px;
+  color:var(--muted);
+  font-weight:850;
+  line-height:1.25;
+}
+.customerToolButton{
+  width:100%;
+  border:0;
+  border-radius:19px;
+  padding:15px;
+  background:linear-gradient(#5b9638,#2f6623);
+  color:#fff;
+  font-size:17px;
+  font-weight:950;
+}
+body.roleCustomer #customerToolsOnly{display:block!important}
+body.roleCustomer #fleetPanel,
+body.roleCustomer #subscriptionRules{display:none!important}
+body.roleExecutor #customerToolsOnly{display:none!important}
+</style>
+
+
+<style>
+/* v7619 — single-cab truck pins, green/free and red/busy only */
+.pcVehicleIcon{
+  width:46px!important;
+  height:52px!important;
+  background:transparent!important;
+  border:0!important;
+  overflow:visible!important;
+  pointer-events:auto;
+}
+.pcVehicleIcon .pcTruckPin{
+  position:relative;
+  width:42px;
+  height:42px;
+  border-radius:50% 50% 50% 7px;
+  transform:rotate(-45deg);
+  background:linear-gradient(145deg,#69b64b,#2f7d25);
+  border:3px solid #fff;
+  box-shadow:0 10px 22px rgba(24,55,20,.28);
+}
+.pcVehicleIcon.busy .pcTruckPin,
+.pcVehicleIcon.track .pcTruckPin,
+.pcVehicleIcon.temp .pcTruckPin,
+.pcVehicleIcon.red .pcTruckPin{
+  background:linear-gradient(145deg,#f15b56,#c52f2a);
+  box-shadow:0 10px 22px rgba(133,28,25,.28);
+}
+.pcVehicleIcon .pcTruck{
+  position:absolute;
+  left:7px;
+  top:12px;
+  width:25px;
+  height:15px;
+  transform:rotate(45deg);
+}
+.pcVehicleIcon .pcTruckBody{
+  position:absolute;
+  left:1px;
+  top:2px;
+  width:15px;
+  height:10px;
+  border-radius:2px 1px 1px 2px;
+  background:#fff;
+}
+.pcVehicleIcon .pcTruckCab{
+  position:absolute;
+  right:1px;
+  top:4px;
+  width:9px;
+  height:8px;
+  border-radius:1px 3px 2px 1px;
+  background:#fff;
+}
+.pcVehicleIcon .pcTruckCab:before{
+  content:"";
+  position:absolute;
+  left:2px;
+  top:1px;
+  width:4px;
+  height:3px;
+  border-radius:1px;
+  background:rgba(47,125,37,.55);
+}
+.pcVehicleIcon.busy .pcTruckCab:before,
+.pcVehicleIcon.track .pcTruckCab:before,
+.pcVehicleIcon.temp .pcTruckCab:before,
+.pcVehicleIcon.red .pcTruckCab:before{
+  background:rgba(197,47,42,.55);
+}
+.pcVehicleIcon .pcTruckWheel{
+  position:absolute;
+  bottom:0;
+  width:5px;
+  height:5px;
+  border-radius:50%;
+  background:#1f2937;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.35);
+}
+.pcVehicleIcon .pcTruckWheel.w1{left:4px}
+.pcVehicleIcon .pcTruckWheel.w2{right:3px}
+
+/* Remove every old car drawing and number plate from map markers */
+.pcVehicleIcon .pcCar,
+.pcVehicleIcon .pcLight,
+.pcVehicleIcon .pcVehiclePlate{
+  display:none!important;
+}
+
+/* Fallback map uses the same one-direction truck silhouette */
+.fbCar{
+  width:42px!important;
+  height:42px!important;
+  border-radius:50% 50% 50% 7px!important;
+  transform:rotate(-45deg)!important;
+  background:linear-gradient(145deg,#69b64b,#2f7d25)!important;
+  border:3px solid #fff!important;
+  box-shadow:0 10px 22px rgba(24,55,20,.28)!important;
+}
+.fbCar:before{
+  content:""!important;
+  position:absolute!important;
+  left:9px!important;
+  top:14px!important;
+  width:24px!important;
+  height:14px!important;
+  transform:rotate(45deg)!important;
+  border-radius:2px!important;
+  background:
+    radial-gradient(circle at 5px 13px,#1f2937 0 2.5px,transparent 3px),
+    radial-gradient(circle at 20px 13px,#1f2937 0 2.5px,transparent 3px),
+    linear-gradient(to right,#fff 0 15px,transparent 15px)!important;
+}
+.fbCar:after{
+  content:""!important;
+  position:absolute!important;
+  left:25px!important;
+  top:18px!important;
+  width:8px!important;
+  height:8px!important;
+  transform:rotate(45deg)!important;
+  border-radius:1px 3px 2px 1px!important;
+  background:#fff!important;
+}
+</style>
+
+
+<style>
+/* v7620 — compact anonymous marker information windows */
+.leaflet-popup-content-wrapper{border-radius:18px!important;box-shadow:0 16px 40px rgba(23,32,51,.22)!important;padding:0!important}
+.leaflet-popup-content{margin:0!important;width:250px!important}
+.leaflet-popup-tip{box-shadow:none!important}
+.pcMiniPopup{padding:14px 15px;font-family:inherit;color:#172033}
+.pcMiniPopupHead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.pcMiniPopupHead b{font-size:15px;line-height:1.2}.pcMiniBadge{border-radius:999px;padding:4px 8px;font-size:10px;font-weight:950;white-space:nowrap}
+.pcMiniBadge.free{background:#e9f7e4;color:#2f7d25}.pcMiniBadge.busy{background:#fde9e7;color:#c52f2a}.pcMiniBadge.order{background:#fff4d7;color:#9a6a00}
+.pcMiniLine{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px solid #eef1ec;font-size:12px}.pcMiniLine span{color:#737d70;font-weight:800}.pcMiniLine strong{text-align:right;font-weight:900}
+.pcMiniNote{margin-top:8px;font-size:10px;color:#737d70;line-height:1.35;font-weight:750}
+.leaflet-popup-close-button{width:28px!important;height:28px!important;line-height:26px!important;font-size:22px!important;color:#687166!important}
+.radiusInfo{display:flex!important;justify-content:space-between!important;align-items:center!important;margin-top:7px!important;font-size:11px!important;font-weight:900!important;color:#737d70!important}.radiusInfo b{color:#2f7d25!important}
+</style>
+
+</head>
+<body>
+<div class="app" id="app">
+  <div class="header"><div class="brand">ProfiClick</div><div class="rolePill" id="rolePill">Заказчик</div><div class="langGroup"><button class="langChip active" data-lang="ru">RU</button><button class="langChip" data-lang="en">EN</button><button class="langChip" data-lang="he">HE</button></div></div>
+  <div class="refresh" id="refresh">Обновление…</div>
+  <div class="swipeWrap" id="swipeWrap">
+    <section class="screen profile" id="profileScreen">
+      <div class="card"><div class="profileTop"><div class="ava">AZ</div><div><h1 class="name" id="profileName"></h1><div class="meta" id="profileMeta">Заказчик · Хайфа</div><div class="pills"><span class="pill">★ 4.9</span><span class="pill gray" id="historyPill">12 заказов</span></div></div></div><button class="bigButton" id="roleToggle">Показать режим исполнителя</button></div>
+      <div class="card customerBox"><div class="title">Заказчик</div><div class="actionGrid"><div class="actionCard"><b>Новый заказ</b><span>Быстрый расчёт и оформление перевозки</span></div><div class="actionCard"><b>Архив</b><span>Завершённые заявки и история цен</span></div></div><button class="bigButton" id="createOrder">Открыть калькулятор</button></div>
+      <div class="card executorBox hide"><div class="title">Исполнитель</div><div class="actionGrid"><div class="actionCard"><b>Новые заявки</b><span>AI подобрал 4 подходящих заказа</span></div><div class="actionCard"><b>Настройки работы</b><span>Радиус, машина, объём, услуги</span></div><div class="actionCard"><b>Рейтинг</b><span>Отзывы, доверие, статистика</span></div><div class="actionCard"><b>Подписка</b><span>3 бесплатно · Plus безлимит</span></div></div></div>
+      
+
+
+<div class="customerToolsOnly" id="customerToolsOnly">
+  <div class="customerToolsGrid">
+    <div class="customerToolCard">
+      <b>Активные заказы</b>
+      <span>Открытые заявки и перевозки в работе</span>
+    </div>
+    <div class="customerToolCard">
+      <b>Архив</b>
+      <span>Завершённые заявки и история цен</span>
+    </div>
+  </div>
+  <button class="customerToolButton" type="button">Открыть калькулятор</button>
+</div>
+<div class="subscriptionRules" id="subscriptionRules">
+  <div><b>1 месяц бесплатно</b><span>Полный доступ для проверки сервиса</span></div>
+  <div><b>₪100 / месяц</b><span>1 активная машина</span></div>
+  <div><b>₪200 / месяц</b><span>до 10 машин · кнопка «Добавить машину» активна</span></div>
+</div>
+<div class="fleetPanel" id="fleetPanel">
+  <div class="fleetHead">
+    <div><b>Мои машины</b><span>2 машины включены · доп. слот до 15 числа</span></div>
+    <button id="addVehicleBtn" type="button">+ Машина</button>
+  </div>
+  <div class="fleetStats">
+    <div><b id="activeCount">2</b><span>активно</span></div>
+    <div><b>2</b><span>бесплатно</span></div>
+    <div><b id="paidCount">0</b><span>доп. слотов</span></div>
+  </div>
+  <div id="fleetList"></div>
+</div>
+<div class="card"><div class="title">Активность</div><div class="miniTabs"><button class="miniTab active" data-act="active">Активные</button><button class="miniTab" data-act="work">В работе</button><button class="miniTab" data-act="archive">Архив</button></div><div id="activityList"></div></div>
+    </section>
+    <section class="screen mapScreen" id="mapScreen"><div class="map"><div id="realMap"></div><div id="fallbackMap"></div><div class="road r1"></div><div class="road r2"></div><div class="road r3"></div><div class="road r4"></div><div class="topStats"><div class="stat"><b id="onlineCount">42</b><span>онлайн</span></div><div class="stat"><b id="ordersCount">18</b><span>заявок</span></div><div class="stat"><b id="nearCount">7</b><span>рядом</span></div></div><div class="aiCard"><b>AI нашёл 5 исполнителей рядом</b><span>Показаны анонимно: без телефона и личных данных</span></div><div class="marker m1"><div class="car"><span class="carLabel">4.9</span></div></div><div class="marker m2"><div class="car"><span class="carLabel">5.0</span></div></div><div class="marker m3"><div class="orderDot">•</div></div><div class="marker m4"><div class="car"><span class="carLabel">4.7</span></div></div><div class="marker m5"><div class="orderDot urgent">•</div></div><div class="marker m6"><div class="car"><span class="carLabel">AI</span></div></div><div class="marker m7"><div class="orderDot">•</div></div><div class="marker m8"><div class="car"></div></div></div><div class="bottomSheet" id="bottomSheet"><div class="handle"></div><div class="sheetTitle" id="sheetTitle"></div><div class="sheetContent"><div class="modeRow"><button class="modeBtn active">Исполнители</button><button class="modeBtn">Заявки</button></div><div class="filterRow"><button class="filterChip active">Все</button><button class="filterChip">Рядом</button><button class="filterChip">AI</button><button class="filterChip">Срочно</button></div><div class="rangeRow"><span>Радиус</span><input id="radius" type="range" min="1" max="100" value="25"><span id="radiusText">25 км</span></div><div class="ctaRow"></div></div></div></section>
+  </div>
+  <div class="driverCard" id="driverCard"><div class="driverTop"><b id="driverTitle">Исполнитель рядом</b><button id="closeDriver" type="button">×</button></div><div class="driverMeta" id="driverMeta">Без телефона и личных данных до подтверждения заказа.</div><div class="driverGrid"><div class="driverMini"><b id="dRating">4.9</b><span>рейтинг</span></div><div class="driverMini"><b id="dKm">2.3 км</b><span>рядом</span></div><div class="driverMini"><b id="dCar">Фургон</b><span>машина</span></div></div><button class="selectDriverBtn" id="selectDriverBtn" type="button">Выбрать исполнителя</button></div><div class="aiLive" id="aiLive">AI: рекомендует исполнителя 1.9 км</div><button class="locBtn" id="locBtn" type="button">⌖</button><div class="orderFlow" id="orderFlow"><div class="flowTitle">AI отправляет заявку</div><div class="flowStep done" id="flow1"><div class="flowDot">✓</div><div class="flowText"><b>Заказ подготовлен</b><span>Цена, маршрут и вещи проверены</span></div></div><div class="flowStep active" id="flow2"><div class="flowDot">2</div><div class="flowText"><b>Исполнитель просматривает</b><span>Данные клиента скрыты</span></div></div><div class="flowStep" id="flow3"><div class="flowDot">3</div><div class="flowText"><b>Ожидаем подтверждение</b><span>После принятия откроется профиль</span></div></div><button class="closeFlow" id="closeFlow" type="button">Понятно</button></div><div class="geoHint" id="geoHint">Показываем ваше местоположение на карте</div>
+<div class="orderCard" id="orderCard">
+  <div class="orderCardTop">
+    <div>
+      <div class="orderBadge" id="orderBadge">AI: отличный заказ</div>
+      <h3 id="orderTitle">Хайфа → Нетания</h3>
+    </div>
+    <button id="closeOrderCard" type="button">×</button>
+  </div>
+  <div class="orderGrid">
+    <div><b id="orderItems">6</b><span>вещей</span></div>
+    <div><b id="orderFloors">2 → 5</b><span>этажи</span></div>
+    <div><b id="orderPrice">₪1680</b><span>примерно</span></div>
+  </div>
+  <div class="orderInfo" id="orderInfo">Лифт есть · сложный подход нет · подходит вам на 96%</div>
+  <button class="acceptOrderBtn" id="acceptOrderBtn" type="button">Принять заявку</button>
+</div>
+<div class="mapLegend" id="mapLegend">
+  <span><i class="free"></i>Свободен</span>
+  <span><i class="busy"></i>Занят</span>
+  <span><i class="track"></i>Едет</span>
+  <span><i class="job"></i>Заявка</span>
+</div>
+<div class="pageDots"><div class="dot" id="dotProfile"></div><div class="dot active" id="dotMap"></div></div><div class="toast" id="toast">Обновлено</div>
+</div>
+<script>
+const $=id=>document.getElementById(id);let page="map",role="customer",startX=0,startY=0,dx=0,dy=0,pulling=false,lang="ru";
+const activityData={active:[["PC-2401","₪1680","Хайфа → Нетания · 6 вещей · ждёт отклика"],["PC-2398","₪1250","Хайфа → Хадера · исполнитель найден"]],work:[["PC-2388","₪880","Хайфа → Хайфа · исполнитель подтверждён"]],archive:[["PC-2311","₪1570","Хайфа → Хайфа · завершено"],["PC-2290","₪750","Один предмет · завершено"]]};
+const tr={ru:{customer:"Заказчик",executor:"Исполнитель",showExec:"Показать режим исполнителя",showCust:"Показать режим заказчика",my:"",need:"",map:"",updated:"Обновлено"},en:{customer:"Customer",executor:"Executor",showExec:"Show executor mode",showCust:"Show customer mode",my:"My page",need:"I need moving",map:"Live ProfiClick map",updated:"Updated"},he:{customer:"לקוח",executor:"מבצע",showExec:"הצג מצב מבצע",showCust:"הצג מצב לקוח",my:"העמוד שלי",need:"אני צריך הובלה",map:"מפת ProfiClick",updated:"עודכן"}};
+function T(k){return tr[lang][k]||k}
+let sheetStartY=0, sheetDy=0;
+function setSheet(open){const s=$("bottomSheet"); if(s) s.classList.add("open")}
+function renderActivity(type="active"){const box=$("activityList");box.innerHTML="";activityData[type].forEach(o=>{const div=document.createElement("div");div.className="order";div.innerHTML=`<div class="orderTop"><span>${o[0]}</span><span class="price">${o[1]}</span></div><div class="orderMeta">${o[2]}</div>`;box.appendChild(div)})}
+function setPage(p){page=p;$("swipeWrap").style.transform=p==="map"?"translateX(-50%)":"translateX(0)";$("dotMap").classList.toggle("active",p==="map");$("dotProfile").classList.toggle("active",p==="profile");if(p==="map")setTimeout(()=>{if(pcMap)pcMap.invalidateSize()},320)}function setLang(l){lang=l;document.body.classList.toggle("rtlContent",l==="he");if($("closeDriver"))$("closeDriver").onclick=()=>$("driverCard").classList.remove("show");
+document.querySelectorAll(".langChip").forEach(b=>b.classList.toggle("active",b.dataset.lang===l));applyText()}
+function applyText(){$("rolePill").textContent=role==="customer"?T("customer"):T("executor");$("profileName").textContent=T("my");$("profileMeta").textContent=(role==="customer"?T("customer"):T("executor"))+" · Haifa";$("roleToggle").textContent=role==="customer"?T("showExec"):T("showCust");if($("sheetTitle")) $("sheetTitle").textContent=""; if($("mainCta")) $("mainCta").textContent=""; if($("profileCta")) $("profileCta").textContent=""}function setRole(r){role=r;document.querySelector(".customerBox").classList.toggle("hide",r!=="customer");document.querySelector(".executorBox").classList.toggle("hide",r!=="executor");applyText()}
+function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1400)}function refresh(){const r=$("refresh");r.textContent="PC · "+T("updated");r.classList.add("show");$("onlineCount").textContent=String(38+Math.floor(Math.random()*16));$("ordersCount").textContent=String(12+Math.floor(Math.random()*14));$("nearCount").textContent=String(4+Math.floor(Math.random()*8));setTimeout(()=>r.classList.remove("show"),900);toast(T("updated"))}
+if($("closeDriver"))$("closeDriver").onclick=()=>$("driverCard").classList.remove("show");
+document.querySelectorAll(".langChip").forEach(b=>b.onclick=()=>setLang(b.dataset.lang));$("roleToggle").onclick=()=>setRole(role==="customer"?"executor":"customer");if($("profileCta")) $("profileCta").onclick=()=>setPage("profile"); if($("mainCta")) $("mainCta").onclick=()=>{setPage("profile");toast("Открываем калькулятор v7.4.62")};$("createOrder").onclick=()=>toast("Открываем калькулятор v7.4.62");$("radius").oninput=()=>{$("radiusText").textContent=$("radius").value+" км"};document.querySelectorAll(".modeBtn").forEach(btn=>btn.onclick=()=>{document.querySelectorAll(".modeBtn").forEach(b=>b.classList.remove("active"));btn.classList.add("active")});document.querySelectorAll(".filterChip").forEach(btn=>btn.onclick=()=>{document.querySelectorAll(".filterChip").forEach(b=>b.classList.remove("active"));btn.classList.add("active");toast("Фильтр: "+btn.textContent)});document.querySelectorAll(".miniTab").forEach(btn=>btn.onclick=()=>{document.querySelectorAll(".miniTab").forEach(b=>b.classList.remove("active"));btn.classList.add("active");renderActivity(btn.dataset.act)});
+$("bottomSheet").addEventListener("click",e=>{if(!e.target.closest("button")&&!e.target.closest("input")) setSheet(!$("bottomSheet").classList.contains("open"))});
+$("bottomSheet").addEventListener("touchstart",e=>{sheetStartY=e.touches[0].clientY;sheetDy=0},{passive:true});
+$("bottomSheet").addEventListener("touchmove",e=>{sheetDy=e.touches[0].clientY-sheetStartY},{passive:true});
+$("bottomSheet").addEventListener("touchend",()=>{if(sheetDy<-25)setSheet(true); if(sheetDy>25)setSheet(false)},{passive:true});
+
+let pcMap=null, pcMarkers=[], pcAnimTimer=null, aiTimer=null, fallbackTimer=null;
+const pcDrivers=[{id:"D1",lat:32.815,lng:34.989,rating:"4.9",km:"2.3 км",car:"Фургон",status:"Свободен",x:22,y:34},{id:"D2",lat:32.803,lng:35.002,rating:"5.0",km:"3.1 км",car:"Грузовик",status:"Свободен",x:70,y:28},{id:"D3",lat:32.827,lng:35.010,rating:"4.7",km:"4.8 км",car:"2 грузчика",status:"Занят",x:16,y:62},{id:"D4",lat:32.792,lng:34.982,rating:"AI",km:"1.9 км",car:"Фургон",status:"Рекомендуется",x:38,y:43}];
+const pcOrders=[{lat:32.810,lng:34.975,urgent:false,x:54,y:52},{lat:32.833,lng:34.998,urgent:true,x:78,y:57},{lat:32.799,lng:35.018,urgent:false,x:62,y:70}];
+function vehicleIcon(){return L.divIcon({className:"pcVehicleIcon",html:'<div class="pcCar"></div>',iconSize:[42,32],iconAnchor:[21,16]})}
+function orderIcon(u){return L.divIcon({className:"pcOrderIcon "+(u?"urgent":""),html:'<div class="pcDot"></div>',iconSize:[32,32],iconAnchor:[16,16]})}
+function showDriver(d){$("driverTitle").textContent="Исполнитель рядом";$("driverMeta").textContent=d.status+" · данные скрыты до подтверждения заказа";$("dRating").textContent=d.rating;$("dKm").textContent=d.km;$("dCar").textContent=d.car;$("driverCard").classList.add("show");if(pcMap)pcMap.flyTo([d.lat,d.lng],14,{duration:.65})}
+function buildFallback(){const box=$("fallbackMap");if(!box)return;box.innerHTML="";pcDrivers.forEach((d,i)=>{const m=document.createElement("div");m.className="fbMarker";m.style.left=d.x+"%";m.style.top=d.y+"%";m.style.animationDelay=(i*.35)+"s";m.innerHTML=`<span class="fbLabel">${d.rating}</span><div class="fbCar"></div>`;m.onclick=()=>showDriver(d);box.appendChild(m)});pcOrders.forEach(o=>{const m=document.createElement("div");m.className="fbMarker";m.style.left=o.x+"%";m.style.top=o.y+"%";m.innerHTML=`<div class="fbDot ${o.urgent?"urgent":""}"></div>`;box.appendChild(m)});clearInterval(fallbackTimer);fallbackTimer=null}
+function initMap(){buildFallback();const mapWrap=document.querySelector(".map");if(typeof L==="undefined"){setTimeout(initMap,500);return}try{if(pcMap)return;pcMap=L.map("realMap",{zoomControl:false,attributionControl:false,preferCanvas:true}).setView([32.812,34.996],13);L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,crossOrigin:true}).addTo(pcMap);pcDrivers.forEach(d=>{const m=L.marker([d.lat,d.lng],{icon:vehicleIcon()}).addTo(pcMap);m.on("click",()=>showDriver(d));pcMarkers.push({m,d})});pcOrders.forEach(o=>L.marker([o.lat,o.lng],{icon:orderIcon(o.urgent)}).addTo(pcMap));setTimeout(()=>{pcMap.invalidateSize();if(mapWrap)mapWrap.classList.add("real")},900);startAiLive()}catch(e){startAiLive()}}
+function startCarMotion(){ if(pcAnimTimer) clearInterval(pcAnimTimer); pcAnimTimer=null; })},2800)}
+function startAiLive(){const msgs=["AI: рекомендует исполнителя 1.9 км","AI: появилась новая заявка в районе","AI: 5 исполнителей подходят по рейтингу","AI: высокий спрос на перевозки рядом"];clearInterval(aiTimer);aiTimer=setInterval(()=>{const el=$("aiLive");if(!el)return;el.textContent=msgs[Math.floor(Math.random()*msgs.length)];el.classList.add("show");setTimeout(()=>el.classList.remove("show"),2600)},5200)}
+
+const app=$("app");app.addEventListener("touchstart",e=>{startX=e.touches[0].clientX;startY=e.touches[0].clientY;dx=0;dy=0;pulling=false},{passive:true});app.addEventListener("touchmove",e=>{dx=e.touches[0].clientX-startX;dy=e.touches[0].clientY-startY;if(Math.abs(dy)>Math.abs(dx)&&dy>65){pulling=true;$("refresh").classList.add("show")}}, {passive:true});app.addEventListener("touchend",()=>{if(pulling){refresh();return} if(Math.abs(dx)>70&&Math.abs(dx)>Math.abs(dy)){ if(dx<0) setPage("map"); else setPage("profile"); }}, {passive:true});
+renderActivity("active");setPage("map");setSheet(true);applyText();initMap();
+</script>
+
+<script>
+(function(){
+  const HAIFA=[32.812,34.996];
+  const drivers=[
+    {lat:32.815,lng:34.989,rating:"4.9",km:"2.3 км",car:"Фургон",status:"Свободен"},
+    {lat:32.803,lng:35.002,rating:"5.0",km:"3.1 км",car:"Грузовик",status:"Свободен"},
+    {lat:32.827,lng:35.010,rating:"4.7",km:"4.8 км",car:"2 грузчика",status:"Занят"},
+    {lat:32.792,lng:34.982,rating:"AI",km:"1.9 км",car:"Фургон",status:"Рекомендуется"}
+  ];
+  const orders=[
+    {lat:32.810,lng:34.975,urgent:false},
+    {lat:32.833,lng:34.998,urgent:true},
+    {lat:32.799,lng:35.018,urgent:false}
+  ];
+  function byId(id){return document.getElementById(id)}
+  function showDriverCard(d){
+    if(byId("driverTitle")) byId("driverTitle").textContent="Исполнитель рядом";
+    if(byId("driverMeta")) byId("driverMeta").textContent=d.status+" · без телефона до подтверждения заказа";
+    if(byId("dRating")) byId("dRating").textContent=d.rating;
+    if(byId("dKm")) byId("dKm").textContent=d.km;
+    if(byId("dCar")) byId("dCar").textContent=d.car;
+    if(byId("driverCard")) byId("driverCard").classList.add("show");
+    if(window.pcMap) window.pcMap.flyTo([d.lat,d.lng],14,{duration:.6});
+  }
+  function vehicleIcon(){return L.divIcon({className:"pcVehicleIcon",html:'<div class="pcCar"></div>',iconSize:[42,32],iconAnchor:[21,16]})}
+  function orderIcon(u){return L.divIcon({className:"pcOrderIcon "+(u?"urgent":""),html:'<div class="pcDot"></div>',iconSize:[32,32],iconAnchor:[16,16]})}
+  function boot(){
+    const el=byId("realMap");
+    if(!el || typeof L==="undefined"){setTimeout(boot,300);return}
+    if(window.pcMapBooted)return;
+    window.pcMapBooted=true;
+    try{
+      if(window.pcMap){try{window.pcMap.remove()}catch(e){}}
+      window.pcMap=L.map(el,{zoomControl:false,attributionControl:false,preferCanvas:true,worldCopyJump:true}).setView(HAIFA,13);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,crossOrigin:true}).addTo(window.pcMap);
+      window.pcLiveMarkers=[];
+      drivers.forEach(d=>{
+        const m=L.marker([d.lat,d.lng],{icon:vehicleIcon()}).addTo(window.pcMap);
+        m.on("click",()=>showDriverCard(d));
+        window.pcLiveMarkers.push({m,d});
+      });
+      orders.forEach(o=>L.marker([o.lat,o.lng],{icon:orderIcon(o.urgent)}).addTo(window.pcMap));
+      const mapWrap=document.querySelector(".map");
+      if(mapWrap) mapWrap.classList.add("real");
+      setTimeout(()=>window.pcMap.invalidateSize(true),150);
+      setTimeout(()=>window.pcMap.invalidateSize(true),700);
+      clearInterval(window.pcMoveTimer);
+      if(window.pcMoveTimer) clearInterval(window.pcMoveTimer); window.pcMoveTimer=null;
+    }catch(e){window.pcMapBooted=false;}
+  }
+  document.addEventListener("DOMContentLoaded",boot);
+  setTimeout(boot,500);
+  setTimeout(boot,1300);
+  document.addEventListener("click",function(e){
+    if(e.target && e.target.id==="locBtn" && window.pcMap) window.pcMap.flyTo(HAIFA,13,{duration:.5});
+    if(e.target && e.target.id==="closeDriver" && byId("driverCard")) byId("driverCard").classList.remove("show");
+  });
+})();
+</script>
+
+
+<script>
+(function(){
+ function byId(id){return document.getElementById(id)}
+ function vehicleIcon(status){if(typeof L==='undefined')return null;const cls=status==='busy'?'busy':status==='track'?'track':'';return L.divIcon({className:'pcVehicleIcon '+cls,html:'<div class="pcCar"><span class="pcLight"></span></div>',iconSize:[50,38],iconAnchor:[25,19]})}
+ function patch(){if(!window.pcLiveMarkers||typeof L==='undefined')return;window.pcLiveMarkers.forEach((o,i)=>{try{const st=i===2?'busy':i===3?'track':'';o.m.setIcon(vehicleIcon(st));o.m.off('click');o.m.on('click',()=>show(o.d,i));}catch(e){}})}
+ function show(d,i){if(byId('driverTitle'))byId('driverTitle').textContent=i===3?'AI рекомендует исполнителя':'Исполнитель рядом';if(byId('driverMeta'))byId('driverMeta').textContent=(d.status||'Свободен')+' · контакты скрыты до подтверждения заказа';if(byId('dRating'))byId('dRating').textContent=d.rating||'4.9';if(byId('dKm'))byId('dKm').textContent=d.km||'2.3 км';if(byId('dCar'))byId('dCar').textContent=d.car||'Фургон';if(byId('dWorkers'))byId('dWorkers').textContent=i===1?'3 грузчика':'2 грузчика';if(byId('dOrders'))byId('dOrders').textContent=i===0?'187 заказов':i===1?'94 заказа':'58 заказов';if(byId('dTrust'))byId('dTrust').textContent=i===2?'74 доверие':'87 доверие';if(byId('driverCard'))byId('driverCard').classList.add('show');if(window.pcMap&&d.lat&&d.lng)window.pcMap.flyTo([d.lat,d.lng],14,{duration:.6})}
+ function startFlow(){if(byId('driverCard'))byId('driverCard').classList.remove('show');const f=byId('orderFlow');if(!f)return;f.classList.add('show');byId('flow1').className='flowStep done';byId('flow2').className='flowStep active';byId('flow3').className='flowStep';setTimeout(()=>{if(byId('flow2'))byId('flow2').className='flowStep done';if(byId('flow3'))byId('flow3').className='flowStep active'},1600);setTimeout(()=>{if(byId('flow3'))byId('flow3').className='flowStep done';const live=byId('aiLive');if(live){live.textContent='AI: исполнитель готов принять заказ';live.classList.add('show');setTimeout(()=>live.classList.remove('show'),2600)}},3200)}
+ document.addEventListener('click',e=>{if(e.target&&e.target.id==='selectDriverBtn')startFlow();if(e.target&&e.target.id==='closeFlow'&&byId('orderFlow'))byId('orderFlow').classList.remove('show')});
+ function boot(){patch();setTimeout(patch,600);setTimeout(patch,1500);setTimeout(()=>{if(window.pcMoveTimer)clearInterval(window.pcMoveTimer);if(window.pcMoveTimer) clearInterval(window.pcMoveTimer); window.pcMoveTimer=null},2200)}
+ document.addEventListener('DOMContentLoaded',boot);setTimeout(boot,1100);
+})();
+</script>
+
+<script>
+(function(){
+  let userMarker=null, followMode=false, watchId=null, fallbackPos=[32.812,34.996];
+  function byId(id){return document.getElementById(id)}
+  function showHint(txt){const h=byId('geoHint'); if(!h)return; h.textContent=txt; h.classList.add('show'); setTimeout(()=>h.classList.remove('show'),2200)}
+  function userIcon(){return L.divIcon({className:'userLocIcon',html:'<div class="userPulse"><div class="userDot"></div></div>',iconSize:[54,54],iconAnchor:[27,27]})}
+  function placeUser(lat,lng,zoom=true){
+    if(typeof L==='undefined' || !window.pcMap) return;
+    if(!userMarker){ userMarker=L.marker([lat,lng],{icon:userIcon(),zIndexOffset:1000}).addTo(window.pcMap); }
+    else userMarker.setLatLng([lat,lng]);
+    if(zoom || followMode) window.pcMap.flyTo([lat,lng],15,{duration:.55});
+  }
+  function getLocation(){
+    const btn=byId('locBtn');
+    if(!navigator.geolocation){ placeUser(fallbackPos[0],fallbackPos[1]); showHint('Геолокация недоступна, показан центр Хайфы'); return; }
+    showHint('Определяем ваше местоположение…');
+    navigator.geolocation.getCurrentPosition(pos=>{
+      const lat=pos.coords.latitude, lng=pos.coords.longitude;
+      placeUser(lat,lng,true); showHint('Вы на карте');
+    },err=>{
+      placeUser(fallbackPos[0],fallbackPos[1],true); showHint('Разрешите геолокацию. Пока показан центр Хайфы');
+    },{enableHighAccuracy:true,timeout:7000,maximumAge:10000});
+  }
+  function toggleFollow(){
+    const btn=byId('locBtn');
+    if(!btn)return;
+    if(!userMarker){ getLocation(); return; }
+    followMode=!followMode;
+    btn.classList.toggle('follow',followMode);
+    showHint(followMode?'Режим следования включён':'Режим следования выключен');
+    if(followMode && navigator.geolocation){
+      if(watchId!==null) navigator.geolocation.clearWatch(watchId);
+      watchId=navigator.geolocation.watchPosition(pos=>placeUser(pos.coords.latitude,pos.coords.longitude,false),()=>{}, {enableHighAccuracy:true,maximumAge:5000});
+    } else if(watchId!==null && navigator.geolocation){ navigator.geolocation.clearWatch(watchId); watchId=null; }
+  }
+  document.addEventListener('click',function(e){
+    if(e.target && e.target.id==='locBtn'){
+      if(!window.pcMap){setTimeout(getLocation,500);return;}
+      if(!userMarker) getLocation(); else toggleFollow();
+    }
+  });
+})();
+</script>
+
+<script>
+(function(){
+  const HAIFA=[32.812,34.996];
+  const drivers=[
+    {lat:32.815,lng:34.989,rating:"4.9",km:"2.3 км",car:"Фургон",status:"Свободен",type:"free"},
+    {lat:32.803,lng:35.002,rating:"5.0",km:"3.1 км",car:"Грузовик",status:"Свободен",type:"free"},
+    {lat:32.827,lng:35.010,rating:"4.7",km:"4.8 км",car:"2 грузчика",status:"Занят",type:"busy"},
+    {lat:32.792,lng:34.982,rating:"AI",km:"1.9 км",car:"Фургон",status:"Едет к клиенту",type:"track"}
+  ];
+  const orders=[
+    {lat:32.810,lng:34.975,score:"96%",kind:"good",title:"Хайфа → Нетания",items:"6",floors:"2 → 5",price:"₪1680",info:"Лифт есть · сложный подход нет · AI: подходит вам на 96%"},
+    {lat:32.833,lng:34.998,score:"82%",kind:"medium",title:"Хайфа → Хайфа",items:"2",floors:"3 → 5",price:"₪880",info:"По месту · лифт есть · быстрый заказ рядом"},
+    {lat:32.799,lng:35.018,score:"64%",kind:"far",title:"Хайфа → Хадера",items:"4",floors:"0 → 2",price:"₪1250",info:"Дальше от вас · AI: средняя выгода"}
+  ];
+  function byId(id){return document.getElementById(id)}
+  function vehicleIcon(type){
+    return L.divIcon({className:"pcVehicleIcon "+(type||""),html:'<div class="pcCar"></div>',iconSize:[48,36],iconAnchor:[24,18]});
+  }
+  function orderIcon(o){
+    return L.divIcon({className:"pcOrderIcon "+o.kind,html:'<div class="pcDot">'+o.price+'</div>',iconSize:[54,38],iconAnchor:[27,19]});
+  }
+  function showOrder(o){
+    if(byId("orderBadge")) byId("orderBadge").textContent = o.kind==="good" ? "AI: отличный заказ" : o.kind==="medium" ? "AI: средний заказ" : "AI: далеко";
+    if(byId("orderTitle")) byId("orderTitle").textContent=o.title;
+    if(byId("orderItems")) byId("orderItems").textContent=o.items;
+    if(byId("orderFloors")) byId("orderFloors").textContent=o.floors;
+    if(byId("orderPrice")) byId("orderPrice").textContent=o.price;
+    if(byId("orderInfo")) byId("orderInfo").textContent=o.info;
+    if(byId("orderCard")) byId("orderCard").classList.add("show");
+    if(byId("driverCard")) byId("driverCard").classList.remove("show");
+    if(window.pcMap) window.pcMap.flyTo([o.lat,o.lng],14,{duration:.55});
+  }
+  function showDriver(d){
+    if(byId("driverTitle")) byId("driverTitle").textContent=d.type==="track"?"Исполнитель едет":"Исполнитель рядом";
+    if(byId("driverMeta")) byId("driverMeta").textContent=d.status+" · контакты скрыты до подтверждения заказа";
+    if(byId("dRating")) byId("dRating").textContent=d.rating;
+    if(byId("dKm")) byId("dKm").textContent=d.km;
+    if(byId("dCar")) byId("dCar").textContent=d.car;
+    if(byId("driverCard")) byId("driverCard").classList.add("show");
+    if(byId("orderCard")) byId("orderCard").classList.remove("show");
+    if(window.pcMap) window.pcMap.flyTo([d.lat,d.lng],14,{duration:.55});
+  }
+  function startFlow(){
+    if(byId("orderCard")) byId("orderCard").classList.remove("show");
+    const f=byId("orderFlow"); if(!f)return;
+    f.classList.add("show");
+    byId("flow1").className="flowStep done"; byId("flow2").className="flowStep active"; byId("flow3").className="flowStep";
+    setTimeout(()=>{if(byId("flow2"))byId("flow2").className="flowStep done"; if(byId("flow3"))byId("flow3").className="flowStep active";},1500);
+    setTimeout(()=>{if(byId("flow3"))byId("flow3").className="flowStep done"; const live=byId("aiLive"); if(live){live.textContent="AI: исполнитель получил заявку";live.classList.add("show");setTimeout(()=>live.classList.remove("show"),2600);}},3100);
+  }
+  function init7509(){
+    const el=byId("realMap");
+    if(!el || typeof L==="undefined"){setTimeout(init7509,300);return}
+    try{ if(window.pcMap){window.pcMap.remove(); window.pcMap=null;} }catch(e){}
+    window.pcMap=L.map(el,{zoomControl:false,attributionControl:false,preferCanvas:true,worldCopyJump:true}).setView(HAIFA,13);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,crossOrigin:true}).addTo(window.pcMap);
+    window.pcLiveMarkers=[];
+    drivers.forEach(d=>{
+      const m=L.marker([d.lat,d.lng],{icon:vehicleIcon(d.type)}).addTo(window.pcMap);
+      m.on("click",()=>showDriver(d));
+      window.pcLiveMarkers.push({m,d});
+    });
+    window.pcOrderMarkers=[];
+    orders.forEach(o=>{
+      const m=L.marker([o.lat,o.lng],{icon:orderIcon(o)}).addTo(window.pcMap);
+      m.on("click",()=>showOrder(o));
+      window.pcOrderMarkers.push({m,o});
+    });
+    const mw=document.querySelector(".map"); if(mw) mw.classList.add("real");
+    setTimeout(()=>window.pcMap.invalidateSize(true),200);
+    setTimeout(()=>window.pcMap.invalidateSize(true),700);
+    clearInterval(window.pcMoveTimer);
+    if(window.pcMoveTimer) clearInterval(window.pcMoveTimer); window.pcMoveTimer=null;
+    clearInterval(window.pcAiTimer7509);
+    const msgs=["AI: новая заявка рядом","AI: отличный заказ в 2.3 км","AI: свободных исполнителей стало больше","AI: высокий спрос на перевозки рядом"];
+    window.pcAiTimer7509=setInterval(()=>{
+      const live=byId("aiLive"); if(!live)return;
+      live.textContent=msgs[Math.floor(Math.random()*msgs.length)];
+      live.classList.add("show");
+      setTimeout(()=>live.classList.remove("show"),2600);
+    },5200);
+  }
+  document.addEventListener("DOMContentLoaded",()=>setTimeout(init7509,450));
+  setTimeout(init7509,900);
+  document.addEventListener("click",function(e){
+    if(e.target && e.target.id==="locBtn" && window.pcMap) window.pcMap.flyTo(HAIFA,13,{duration:.5});
+    if(e.target && e.target.id==="closeOrderCard" && byId("orderCard")) byId("orderCard").classList.remove("show");
+    if(e.target && e.target.id==="acceptOrderBtn") startFlow();
+    if(e.target && e.target.id==="closeFlow" && byId("orderFlow")) byId("orderFlow").classList.remove("show");
+  });
+})();
+</script>
+
+
+<div class="slotModal" id="slotModal">
+  <div class="slotBox">
+    <h3>Открыть дополнительный слот?</h3>
+    <p id="slotText">В подписке уже есть 2 бесплатные машины. Чтобы активировать ещё одну машину, нужен дополнительный слот до 15 числа.</p>
+    <div class="slotActions"><button id="cancelSlotBtn" type="button">Отмена</button><button id="paySlotBtn" type="button">Открыть слот</button></div>
+  </div>
+</div>
+
+
+<script>
+(function(){
+  const FREE_LIMIT=2, RENEW_DAY=15;
+  const vehicles=[
+    {id:1,name:"Машина №1",num:"12-345-67",status:"free",paid:true,free:true,active:true},
+    {id:2,name:"Машина №2",num:"98-765-43",status:"busy",paid:true,free:true,active:true},
+    {id:3,name:"Машина №3",num:"73-456-12",status:"off",paid:false,free:false,active:false}
+  ];
+  let pendingVehicle=null;
+  const $=id=>document.getElementById(id);
+  function nextRenewText(){
+    const d=new Date(); let m=d.getMonth(), y=d.getFullYear();
+    if(d.getDate()>=RENEW_DAY){m++; if(m>11){m=0;y++;}}
+    const months=["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+    return RENEW_DAY+" "+months[m];
+  }
+  function statusText(v){
+    if(!v.active) return "Неактивна";
+    if(v.status==="busy") return "На заказе";
+    if(v.status==="free") return "Свободна";
+    return "Неактивна";
+  }
+  function renderFleet(){
+    const box=$("fleetList"); if(!box)return;
+    box.innerHTML="";
+    const active=vehicles.filter(v=>v.active).length;
+    const paid=vehicles.filter(v=>!v.free&&v.paid).length;
+    if($("activeCount")) $("activeCount").textContent=String(active);
+    if($("paidCount")) $("paidCount").textContent=String(paid);
+    vehicles.forEach(v=>{
+      const div=document.createElement("div");
+      div.className="vehicleCard";
+      const cls=!v.active?"off":v.status==="busy"?"busy":(!v.free&&v.paid)?"paid":"";
+      const slotText=v.free?"Входит в подписку":(v.paid?"Оплачено до "+nextRenewText():"Нужен слот");
+      div.innerHTML=`<div class="vehicleTop"><div><div class="vehicleName">🚚 ${v.name}</div><div class="vehicleNum">Гос. номер: ${v.num} · ${slotText}</div></div><div class="vehicleStatus ${cls}">${statusText(v)}</div></div>
+      <div class="vehicleActions"><button class="primary" data-action="toggle" data-id="${v.id}">${v.active?"Выключить":"Включить"}</button><button data-action="busy" data-id="${v.id}">${v.status==="busy"?"Сделать свободной":"На заказе"}</button></div>`;
+      box.appendChild(div);
+    });
+  }
+  function openSlot(v){
+    pendingVehicle=v;
+    if($("slotText")) $("slotText").textContent=`${v.name} — дополнительная машина. Если открыть слот сейчас, он будет активен до ${nextRenewText()}. До этой даты её можно включать и выключать без повторной оплаты.`;
+    $("slotModal")?.classList.add("show");
+  }
+  function toast(msg){const t=$("toast"); if(t){t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1600);}}
+  document.addEventListener("click",function(e){
+    const t=e.target; if(!t)return;
+    if(t.id==="addVehicleBtn"){
+      const id=vehicles.length+1;
+      vehicles.push({id,name:"Машина №"+id,num:"Введите номер",status:"off",paid:false,free:false,active:false});
+      renderFleet(); toast("Машина добавлена. Для активации нужен слот."); return;
+    }
+    if(t.id==="cancelSlotBtn"){ $("slotModal")?.classList.remove("show"); pendingVehicle=null; return; }
+    if(t.id==="paySlotBtn" && pendingVehicle){
+      pendingVehicle.paid=true; pendingVehicle.active=true; pendingVehicle.status="free";
+      $("slotModal")?.classList.remove("show"); toast("Слот открыт до "+nextRenewText());
+      renderFleet(); pendingVehicle=null; return;
+    }
+    const action=t.dataset?.action, id=Number(t.dataset?.id); if(!action||!id)return;
+    const v=vehicles.find(x=>x.id===id); if(!v)return;
+    if(action==="toggle"){
+      if(!v.free && !v.paid && !v.active){openSlot(v);return;}
+      v.active=!v.active; v.status=v.active?(v.status==="off"?"free":v.status):"off"; renderFleet(); return;
+    }
+    if(action==="busy"){
+      if(!v.active){
+        if(!v.free && !v.paid){openSlot(v);return;}
+        v.active=true;
+      }
+      v.status=v.status==="busy"?"free":"busy"; renderFleet(); return;
+    }
+  });
+  document.addEventListener("DOMContentLoaded",renderFleet);
+  setTimeout(renderFleet,300);
+})();
+</script>
+
+
+<script>
+(function(){
+  function markPage(){
+    const wrap=document.getElementById("swipeWrap");
+    const isMap = wrap && String(wrap.style.transform||"").includes("-50%");
+    document.body.classList.toggle("onMap", !!isMap);
+  }
+  const oldSetPage = window.setPage;
+  if(typeof oldSetPage === "function"){
+    window.setPage = function(p){
+      oldSetPage(p);
+      document.body.classList.toggle("onMap", p==="map");
+    };
+  }
+  document.addEventListener("DOMContentLoaded", function(){
+    markPage();
+    const wrap=document.getElementById("swipeWrap");
+    if(wrap){
+      new MutationObserver(markPage).observe(wrap,{attributes:true,attributeFilter:["style","class"]});
+    }
+  });
+  setInterval(markPage, 500);
+})();
+</script>
+
+
+<script>
+(function(){
+  const center={lat:32.812,lng:34.996};
+  const steps=[1,3,5,10,25,50,100];
+  function byId(id){return document.getElementById(id)}
+  function distKm(a,b){
+    const R=6371, dLat=(b.lat-a.lat)*Math.PI/180, dLng=(b.lng-a.lng)*Math.PI/180;
+    const la1=a.lat*Math.PI/180, la2=b.lat*Math.PI/180;
+    const h=Math.sin(dLat/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dLng/2)**2;
+    return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h));
+  }
+  function radiusFromSlider(slider){
+    const v=Math.round(Number(slider.value||4));
+    return steps[Math.max(0,Math.min(steps.length-1,v))];
+  }
+  function ensureInfo(){
+    const row=document.querySelector(".rangeRow");
+    if(row && !byId("radiusInfo")){
+      const info=document.createElement("div");
+      info.className="radiusInfo";
+      info.id="radiusInfo";
+      info.innerHTML='<span>В радиусе</span><b id="radiusFound">0 исполнителей</b>';
+      row.insertAdjacentElement("afterend",info);
+    }
+  }
+  function setText(km, count){
+    document.querySelectorAll(".rangeRow b, #radiusValue, .radiusValue").forEach(el=>{
+      if(el) el.textContent=km+" км";
+    });
+    if(byId("radiusFound")) byId("radiusFound").textContent=count+" исполнителей";
+    if(byId("nearCount")) byId("nearCount").textContent=String(count);
+    const ai=document.querySelector(".aiCard");
+    if(ai){
+      const b=ai.querySelector("b") || ai;
+      b.textContent="AI нашёл "+count+" исполнителей рядом";
+    }
+  }
+  function apply(){
+    if(!window.pcMap) return;
+    const slider=document.querySelector('input[type="range"]');
+    if(!slider) return;
+    const km=radiusFromSlider(slider);
+    let count=0;
+    (window.pcLiveMarkers||[]).forEach(obj=>{
+      if(!obj||!obj.d||!obj.m) return;
+      const show=distKm(center,{lat:obj.d.lat,lng:obj.d.lng})<=km;
+      if(show) count++;
+      try{
+        if(show && !window.pcMap.hasLayer(obj.m)) obj.m.addTo(window.pcMap);
+        if(!show && window.pcMap.hasLayer(obj.m)) window.pcMap.removeLayer(obj.m);
+      }catch(e){}
+    });
+    (window.pcOrderMarkers||[]).forEach(obj=>{
+      const o=obj.o||obj.d||{};
+      if(!o.lat||!o.lng||!obj.m) return;
+      const show=distKm(center,{lat:o.lat,lng:o.lng})<=km;
+      try{
+        if(show && !window.pcMap.hasLayer(obj.m)) obj.m.addTo(window.pcMap);
+        if(!show && window.pcMap.hasLayer(obj.m)) window.pcMap.removeLayer(obj.m);
+      }catch(e){}
+    });
+    setText(km,count);
+  }
+  function bind(){
+    ensureInfo();
+    document.querySelectorAll('input[type="range"]').forEach(s=>{
+      if(s.dataset.radiusBound==="1") return;
+      s.dataset.radiusBound="1";
+      s.min=0; s.max=6; s.step=1;
+      if(!s.dataset.radiusInit){s.value=4; s.dataset.radiusInit="1";}
+      s.addEventListener("input",apply);
+      s.addEventListener("change",apply);
+    });
+    apply();
+  }
+  document.addEventListener("DOMContentLoaded",()=>setTimeout(bind,900));
+  setTimeout(bind,1200);
+  setTimeout(bind,2400);
+  
+})();
+</script>
+
+
+<div class="pcLegendModal" id="pcLegendModal">
+  <div class="pcLegendBox">
+    <div class="pcLegendHead"><b>Обозначения</b><button id="closePcLegend" type="button">×</button></div>
+    <div class="pcLegendCols">
+      <div><h4>Машины</h4><p><i class="lgCar free"></i>Свободна</p><p><i class="lgCar busy"></i>Занята</p><p><i class="lgCar track"></i>Едет к клиенту</p><p><i class="lgCar temp"></i>Временно недоступна</p></div>
+      <div><h4>Заявки</h4><p><i class="lgOrder active"></i>Активная заявка</p><p><i class="lgOrder pending"></i>Есть отклик</p></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const state={mode:"all"};
+  function $(id){return document.getElementById(id)}
+  function ensureTabs(){
+    const sheet=document.querySelector(".bottomSheet"); if(!sheet||$("pcFleetTabs"))return;
+    const tabs=document.createElement("div"); tabs.className="pcFleetTabs"; tabs.id="pcFleetTabs";
+    tabs.innerHTML='<button data-map-mode="all" class="active">🌐 Все</button><button data-map-mode="mine">🚚 Мои</button><button data-map-mode="drivers">👤 Исполнители</button><button id="openPcLegend" type="button">ⓘ</button>';
+    sheet.insertBefore(tabs,sheet.firstElementChild);
+    const row=sheet.querySelector(".rangeRow");
+    if(row&&!$("radiusTitle")){
+      const title=document.createElement("div"); title.className="radiusTitle"; title.id="radiusTitle"; title.innerHTML='<span>Радиус поиска: <b id="pcRadiusText">25 км</b></span>';
+      const scale=document.createElement("div"); scale.className="radiusScale"; scale.innerHTML='<span>5 км</span><span>10 км</span><span>25 км</span><span>50 км</span><span>100 км</span>';
+      row.insertAdjacentElement("beforebegin",title); row.insertAdjacentElement("afterend",scale);
+    }
+  }
+  function vehicleIcon(type,mine,plate){
+    const cls=(type||"")+(mine?" mine":"");
+    const plateHtml=plate?'<span class="pcVehiclePlate">'+plate+'</span>':'';
+    return L.divIcon({className:"pcVehicleIcon "+cls,html:'<div class="pcCar"></div>'+plateHtml,iconSize:[54,48],iconAnchor:[27,20]});
+  }
+  function orderIcon(o){
+    return L.divIcon({className:"pcOrderIcon "+(o.state==="pending"?"pending":"active"),html:'<div class="pcDot"><span>'+o.price+'</span></div>',iconSize:[48,48],iconAnchor:[24,24]});
+  }
+  function rebuild(){
+    if(!window.pcMap||typeof L==="undefined")return;
+    (window.pcLiveMarkers||[]).forEach(x=>{try{window.pcMap.removeLayer(x.m)}catch(e){}});
+    (window.pcOrderMarkers||[]).forEach(x=>{try{window.pcMap.removeLayer(x.m)}catch(e){}});
+    window.pcLiveMarkers=[]; window.pcOrderMarkers=[];
+    const drivers=[
+      {lat:32.815,lng:34.989,rating:"4.9",km:"2.3 км",car:"Фургон",status:"Свободен",type:"free",mine:true,plate:"AA-123-45"},
+      {lat:32.803,lng:35.002,rating:"5.0",km:"3.1 км",car:"Грузовик",status:"Свободен",type:"free",mine:true,plate:"BB-234-56"},
+      {lat:32.827,lng:35.010,rating:"4.7",km:"4.8 км",car:"Фургон",status:"Занята",type:"busy",mine:false,plate:""},
+      {lat:32.792,lng:34.982,rating:"AI",km:"1.9 км",car:"Фургон",status:"Едет к клиенту",type:"track",mine:true,plate:"CC-345-67"},
+      {lat:32.835,lng:34.975,rating:"4.8",km:"7.2 км",car:"Фургон",status:"Временно недоступна",type:"temp",mine:false,plate:""}
+    ];
+    const orders=[
+      {lat:32.810,lng:34.975,price:"₪1680",state:"active",title:"Хайфа → Нетания"},
+      {lat:32.833,lng:34.998,price:"₪880",state:"pending",title:"Хайфа → Хайфа"},
+      {lat:32.799,lng:35.018,price:"₪1250",state:"active",title:"Хайфа → Хадера"},
+      {lat:32.790,lng:34.970,price:"₪950",state:"active",title:"Тират-Кармель → Хайфа"}
+    ];
+    drivers.forEach((d,i)=>{
+      const m=L.marker([d.lat,d.lng],{icon:vehicleIcon(d.type,d.mine,d.plate)}).addTo(window.pcMap);
+      if(d.type!=="busy")m.on("click",()=>{if(window.showDriverV7507)window.showDriverV7507(d,i)});
+      window.pcLiveMarkers.push({m,d});
+    });
+    orders.forEach(o=>{
+      const m=L.marker([o.lat,o.lng],{icon:orderIcon(o)}).addTo(window.pcMap);
+      m.on("click",()=>{const live=$("aiLive"); if(live){live.textContent="Заявка: "+o.title+" · "+o.price;live.classList.add("show");setTimeout(()=>live.classList.remove("show"),2400)}});
+      window.pcOrderMarkers.push({m,o});
+    });
+    applyMode(); topCards();
+  }
+  function applyMode(){
+    if(!window.pcMap)return;
+    (window.pcLiveMarkers||[]).forEach(obj=>{
+      let show=true; if(state.mode==="mine")show=!!obj.d.mine; if(state.mode==="drivers")show=!obj.d.mine;
+      try{ if(show&&!window.pcMap.hasLayer(obj.m))obj.m.addTo(window.pcMap); if(!show&&window.pcMap.hasLayer(obj.m))window.pcMap.removeLayer(obj.m);}catch(e){}
+    });
+    (window.pcOrderMarkers||[]).forEach(obj=>{try{if(!window.pcMap.hasLayer(obj.m))obj.m.addTo(window.pcMap)}catch(e){}});
+    document.querySelectorAll("[data-map-mode]").forEach(b=>b.classList.toggle("active",b.dataset.mapMode===state.mode));
+    if(state.mode==="mine")fitMine();
+  }
+  function fitMine(){
+    if(!window.pcMap||typeof L==="undefined")return;
+    const pts=(window.pcLiveMarkers||[]).filter(x=>x.d&&x.d.mine).map(x=>x.m.getLatLng());
+    if(pts.length>1)window.pcMap.fitBounds(L.latLngBounds(pts).pad(.45),{animate:true,maxZoom:13});
+  }
+  function topCards(){
+    const map=document.querySelector(".map"); if(!map)return;
+    let c=$("pcTopCards"); if(!c){c=document.createElement("div");c.className="pcTopCards";c.id="pcTopCards";c.innerHTML='<div class="pcTopCard"><b>Мои машины</b><span id="myCarsStat"></span></div><div class="pcTopCard"><b>Активные заявки</b><span id="ordersStat"></span></div>';map.appendChild(c);}
+    const mine=(window.pcLiveMarkers||[]).filter(x=>x.d&&x.d.mine).length, free=(window.pcLiveMarkers||[]).filter(x=>x.d&&x.d.mine&&x.d.type==="free").length;
+    if($("myCarsStat"))$("myCarsStat").textContent=mine+" машины · свободны "+free;
+    if($("ordersStat"))$("ordersStat").textContent=(window.pcOrderMarkers||[]).length+" активные";
+  }
+  function bind(){
+    ensureTabs();
+    document.querySelectorAll('input[type="range"]').forEach(s=>{
+      s.min=0;s.max=4;s.step=1;if(!s.dataset.v7600){s.value=2;s.dataset.v7600="1";}
+      s.oninput=()=>{const vals=[5,10,25,50,100];const v=vals[Number(s.value)||2];if($("pcRadiusText"))$("pcRadiusText").textContent=v+" км";}
+    });
+  }
+  document.addEventListener("click",e=>{
+    const b=e.target.closest("[data-map-mode]"); if(b){state.mode=b.dataset.mapMode;applyMode();}
+    if(e.target&&e.target.id==="openPcLegend")$("pcLegendModal")?.classList.add("show");
+    if(e.target&&e.target.id==="closePcLegend")$("pcLegendModal")?.classList.remove("show");
+    if(e.target&&e.target.id==="pcLegendModal")e.target.classList.remove("show");
+  });
+  function boot(){bind();setTimeout(rebuild,700);setTimeout(()=>{bind();rebuild()},1800)}
+  document.addEventListener("DOMContentLoaded",boot); setTimeout(boot,1200);
+})();
+</script>
+
+
+<script>
+(function(){
+  function $(id){return document.getElementById(id)}
+  function updateRadiusText(s){
+    const vals=[5,10,25,50,100];
+    const km=vals[Number(s.value)||2] || 25;
+    const t=$("pcRadiusText");
+    if(t) t.textContent=km+" км";
+    document.querySelectorAll(".rangeRow b").forEach(b=>{b.textContent=km+" км"});
+  }
+  function cleanFleetUI(){
+    const top=$("pcTopCards");
+    if(top) top.remove();
+    document.querySelectorAll(".pcVehiclePlate").forEach(x=>x.remove());
+
+    const sheet=document.querySelector(".bottomSheet");
+    if(sheet){
+      document.querySelectorAll(".bottomSheet button, .bottomSheet div").forEach(el=>{
+        const txt=(el.textContent||"").trim();
+        if((txt==="Исполнители" || txt==="Заявки") && !el.closest("#pcFleetTabs")){
+          const parent=el.parentElement;
+          if(parent && parent.children.length<=3) parent.style.display="none";
+        }
+      });
+    }
+
+    const row=document.querySelector(".rangeRow");
+    if(row && !$("radiusTitle")){
+      const title=document.createElement("div");
+      title.className="radiusTitle";
+      title.id="radiusTitle";
+      title.innerHTML='<span>Радиус</span><b id="pcRadiusText">25 км</b>';
+      row.insertAdjacentElement("beforebegin", title);
+    }
+    document.querySelectorAll(".radiusScale").forEach(x=>x.remove());
+
+    document.querySelectorAll('input[type="range"]').forEach(s=>{
+      if(!s.dataset.cleanRadius){
+        s.dataset.cleanRadius="1";
+        s.min=0; s.max=4; s.step=1;
+        if(!s.value || Number(s.value)>4) s.value=2;
+        s.addEventListener("input",()=>updateRadiusText(s));
+        s.addEventListener("change",()=>updateRadiusText(s));
+      }
+      updateRadiusText(s);
+    });
+
+    document.querySelectorAll(".card,.actionCard,.toolCard,.executorTile").forEach(el=>{
+      const txt=(el.textContent||"").toLowerCase();
+      if(txt.includes("мой калькулятор") || txt.includes("my calculator")) el.remove();
+    });
+  }
+  document.addEventListener("DOMContentLoaded",cleanFleetUI);
+  setTimeout(cleanFleetUI,500);
+  setTimeout(cleanFleetUI,1500);
+  setInterval(cleanFleetUI,2500);
+})();
+</script>
+
+
+<div class="upgradeModal" id="upgradeModal">
+  <div class="upgradeBox">
+    <button class="upgradeClose" id="upgradeClose" type="button">×</button>
+    <h3>Подключить ProfiClick Автопарк</h3>
+    <p>В обычной версии доступна 1 машина. Чтобы добавить до 10 машин, подключите расширенный режим.</p>
+    <div class="upgradePlans">
+      <div><b>₪100 / месяц</b><span>1 активная машина</span></div>
+      <div class="active"><b>₪200 / месяц</b><span>до 10 машин · автопарк</span></div>
+    </div>
+    <button class="upgradeBtn" type="button">Подключить ₪200 / месяц</button>
+  </div>
+</div>
+
+<script>
+(function(){
+function $(id){return document.getElementById(id)}
+function clean(){
+ document.body.classList.add("standardPlan");
+ document.querySelectorAll(".card,.actionCard,.toolCard,.tile,section").forEach(el=>{
+   const txt=(el.textContent||"").trim().toLowerCase();
+   const small=txt.length<220;
+   if(small && (txt.includes("новый заказ") || txt.includes("архив")) && !txt.includes("активность")){
+     el.classList.add("hideByV7611");
+   }
+   if(txt.includes("открыть калькулятор")){
+     el.querySelectorAll("div").forEach(ch=>{
+       const t=(ch.textContent||"").trim().toLowerCase();
+       if(t.length<140 && (t.includes("новый заказ") || t.includes("архив"))) ch.classList.add("hideByV7611");
+     });
+   }
+ });
+ const add=$("addVehicleBtn");
+ if(add){
+   add.classList.add("lockedAdd");
+   add.onclick=function(e){e.preventDefault();e.stopPropagation();$("upgradeModal")?.classList.add("show");return false;};
+ }
+ const cards=document.querySelectorAll("#fleetList .vehicleCard");
+ cards.forEach((c,i)=>{if(i>0)c.style.display="none";});
+ if($("activeCount"))$("activeCount").textContent="1";
+ if($("paidCount"))$("paidCount").textContent="0";
+ const fleetHead=document.querySelector(".fleetHead span");
+ if(fleetHead)fleetHead.textContent="1 машина включена · до 10 машин в режиме Автопарк";
+}
+document.addEventListener("click",e=>{
+ if(e.target&&e.target.id==="upgradeClose")$("upgradeModal")?.classList.remove("show");
+ if(e.target&&e.target.id==="upgradeModal")e.target.classList.remove("show");
+});
+document.addEventListener("DOMContentLoaded",clean);
+setTimeout(clean,500);setTimeout(clean,1500);setInterval(clean,2500);
+})();
+</script>
+
+<script>
+(function(){
+  function getRole(){
+    var roleText = "";
+    document.querySelectorAll("button,.pill,.badge,.role").forEach(function(el){
+      var t = (el.textContent || "").trim();
+      if(t === "Заказчик" || t === "Исполнитель") roleText = t;
+    });
+    if(roleText === "Исполнитель") return "executor";
+    if(roleText === "Заказчик") return "customer";
+
+    var body = document.body.innerText || "";
+    if(body.indexOf("Показать режим исполнителя") !== -1) return "customer";
+    if(body.indexOf("Показать режим заказчика") !== -1) return "executor";
+    if(body.indexOf("Заказчик ·") !== -1) return "customer";
+    if(body.indexOf("Исполнитель ·") !== -1) return "executor";
+    return "customer";
+  }
+
+  function applyRoleTools(){
+    var role = getRole();
+    var isCustomer = role === "customer";
+    document.body.classList.toggle("roleCustomer", isCustomer);
+    document.body.classList.toggle("roleExecutor", !isCustomer);
+
+    var tools = document.getElementById("customerToolsOnly");
+    var fleet = document.getElementById("fleetPanel");
+    var sub = document.getElementById("subscriptionRules");
+
+    if(tools) tools.style.display = isCustomer ? "block" : "none";
+    if(fleet) fleet.style.display = isCustomer ? "none" : "";
+    if(sub) sub.style.display = isCustomer ? "none" : "";
+  }
+
+  document.addEventListener("DOMContentLoaded", applyRoleTools);
+  document.addEventListener("click", function(){ setTimeout(applyRoleTools, 120); });
+  setTimeout(applyRoleTools, 300);
+  setTimeout(applyRoleTools, 1000);
+  setInterval(applyRoleTools, 2000);
+})();
+</script>
+
+
+<script>
+(function(){
+  function truckPinIcon(status){
+    if(typeof L === "undefined") return null;
+    var red = status === "busy" || status === "track" || status === "temp" ||
+              status === "red" || status === "занят" || status === "занята";
+    var cls = red ? "busy red" : "free";
+    return L.divIcon({
+      className: "pcVehicleIcon " + cls,
+      html:
+        '<div class="pcTruckPin">' +
+          '<div class="pcTruck">' +
+            '<span class="pcTruckBody"></span>' +
+            '<span class="pcTruckCab"></span>' +
+            '<span class="pcTruckWheel w1"></span>' +
+            '<span class="pcTruckWheel w2"></span>' +
+          '</div>' +
+        '</div>',
+      iconSize:[46,52],
+      iconAnchor:[23,47]
+    });
+  }
+
+  function markerStatus(obj, index){
+    var d = obj && obj.d ? obj.d : {};
+    var type = String(d.type || d.status || "").toLowerCase();
+    if(type.indexOf("busy") !== -1 || type.indexOf("занят") !== -1 ||
+       type.indexOf("track") !== -1 || type.indexOf("едет") !== -1 ||
+       type.indexOf("temp") !== -1 || type.indexOf("недоступ") !== -1){
+      return "busy";
+    }
+    /* Keep the demo's third/fourth occupied markers red when old data has no type */
+    if(!type && (index === 2 || index === 3)) return "busy";
+    return "free";
+  }
+
+  function patchTruckMarkers(){
+    if(typeof L === "undefined") return;
+
+    var collections = [
+      window.pcLiveMarkers,
+      window.pcMarkers
+    ];
+
+    collections.forEach(function(list){
+      if(!Array.isArray(list)) return;
+      list.forEach(function(obj,index){
+        if(!obj || !obj.m || typeof obj.m.setIcon !== "function") return;
+        var status = markerStatus(obj,index);
+        try{
+          obj.m.setIcon(truckPinIcon(status));
+        }catch(e){}
+      });
+    });
+
+    /* Patch any Leaflet vehicle marker left by older initialization */
+    document.querySelectorAll(".pcVehicleIcon").forEach(function(el){
+      if(el.querySelector(".pcTruckPin")) return;
+      var red = el.classList.contains("busy") ||
+                el.classList.contains("track") ||
+                el.classList.contains("temp");
+      el.className = "pcVehicleIcon " + (red ? "busy red" : "free");
+      el.innerHTML =
+        '<div class="pcTruckPin">' +
+          '<div class="pcTruck">' +
+            '<span class="pcTruckBody"></span>' +
+            '<span class="pcTruckCab"></span>' +
+            '<span class="pcTruckWheel w1"></span>' +
+            '<span class="pcTruckWheel w2"></span>' +
+          '</div>' +
+        '</div>';
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", function(){
+    setTimeout(patchTruckMarkers,350);
+    setTimeout(patchTruckMarkers,900);
+    setTimeout(patchTruckMarkers,1700);
+  });
+  setTimeout(patchTruckMarkers,1200);
+  
+})();
+</script>
+
+
+<script>
+(function(){
+  const CENTER={lat:32.7940,lng:34.9896}; // Haifa demo location
+  const STEPS=[5,10,25,50,100,250,450];
+  let radiusKm=25;
+  function $(id){return document.getElementById(id)}
+  function km(a,b){
+    const R=6371,dLat=(b.lat-a.lat)*Math.PI/180,dLng=(b.lng-a.lng)*Math.PI/180;
+    const la1=a.lat*Math.PI/180,la2=b.lat*Math.PI/180;
+    const h=Math.sin(dLat/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dLng/2)**2;
+    return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h));
+  }
+  function truckIcon(status){
+    const red=status==='busy';
+    return L.divIcon({
+      className:'pcVehicleIcon '+(red?'busy red':'free'),
+      html:'<div class="pcTruckPin"><div class="pcTruck"><span class="pcTruckBody"></span><span class="pcTruckCab"></span><span class="pcTruckWheel w1"></span><span class="pcTruckWheel w2"></span></div></div>',
+      iconSize:[46,52],iconAnchor:[23,47],popupAnchor:[0,-43]
+    });
+  }
+  function jobIcon(o){
+    return L.divIcon({className:'pcOrderIcon '+(o.urgent?'urgent':'active'),html:'<div class="pcDot">📦</div>',iconSize:[36,36],iconAnchor:[18,18],popupAnchor:[0,-13]});
+  }
+  function driverPopup(d){
+    const free=d.status==='free';
+    return '<div class="pcMiniPopup"><div class="pcMiniPopupHead"><b>'+d.vehicle+'</b><span class="pcMiniBadge '+(free?'free':'busy')+'">'+(free?'Свободна':'Занята')+'</span></div>'+
+      '<div class="pcMiniLine"><span>Город</span><strong>'+d.city+'</strong></div>'+
+      '<div class="pcMiniLine"><span>Расстояние</span><strong>'+Math.round(km(CENTER,d))+' км</strong></div>'+
+      '<div class="pcMiniLine"><span>Рейтинг</span><strong>★ '+d.rating+'</strong></div>'+
+      (free?'<div class="pcMiniLine"><span>Готовность</span><strong>'+d.ready+'</strong></div>':'<div class="pcMiniLine"><span>Занята до</span><strong>'+d.until+'</strong></div>')+
+      '<div class="pcMiniNote">Контакты и личные данные откроются только после подтверждения заказа в ProfiClick.</div></div>';
+  }
+  function orderPopup(o){
+    return '<div class="pcMiniPopup"><div class="pcMiniPopupHead"><b>'+o.title+'</b><span class="pcMiniBadge order">Заказ</span></div>'+
+      '<div class="pcMiniLine"><span>Маршрут</span><strong>'+o.route+'</strong></div>'+
+      '<div class="pcMiniLine"><span>Дата</span><strong>'+o.when+'</strong></div>'+
+      '<div class="pcMiniLine"><span>Стоимость</span><strong>'+o.price+'</strong></div>'+
+      '<div class="pcMiniLine"><span>Расстояние от вас</span><strong>'+Math.round(km(CENTER,o))+' км</strong></div>'+
+      '<div class="pcMiniNote">Нажатие показывает только данные заказа без телефона заказчика.</div></div>';
+  }
+  const drivers=[
+    {lat:32.794,lng:34.9896,city:'Хайфа',vehicle:'Фургон 12 м³',status:'free',rating:'4.9',ready:'через 20 минут'},
+    {lat:32.927,lng:35.083,city:'Акко',vehicle:'Грузовик до 3.5 т',status:'busy',rating:'4.8',until:'20:00'},
+    {lat:32.6996,lng:35.3035,city:'Ноф-ха-Галиль',vehicle:'Фургон 10 м³',status:'free',rating:'4.7',ready:'сейчас'},
+    {lat:32.434,lng:34.9196,city:'Хадера',vehicle:'Грузовик до 5 т',status:'free',rating:'5.0',ready:'через 30 минут'},
+    {lat:32.0853,lng:34.7818,city:'Тель-Авив',vehicle:'Фургон 14 м³',status:'busy',rating:'4.9',until:'18:30'},
+    {lat:31.7683,lng:35.2137,city:'Иерусалим',vehicle:'Грузовик до 7.5 т',status:'free',rating:'4.8',ready:'сейчас'},
+    {lat:31.2529,lng:34.7915,city:'Беэр-Шева',vehicle:'Фургон 12 м³',status:'busy',rating:'4.6',until:'21:00'},
+    {lat:29.5577,lng:34.9519,city:'Эйлат',vehicle:'Грузовик до 3.5 т',status:'free',rating:'4.9',ready:'через 15 минут'}
+  ];
+  const orders=[
+    {lat:32.819,lng:34.998,city:'Хайфа',title:'Переезд квартиры',route:'Хайфа → Нешер',when:'Сегодня, 19:00',price:'₪420',urgent:false},
+    {lat:32.929,lng:35.075,city:'Акко',title:'Доставка мебели',route:'Акко → Нагария',when:'Сегодня, 18:00',price:'₪360',urgent:true},
+    {lat:32.3215,lng:34.8532,city:'Нетания',title:'Офисный переезд',route:'Нетания → Герцлия',when:'Завтра, 09:00',price:'₪780',urgent:false},
+    {lat:32.070,lng:34.790,city:'Тель-Авив',title:'Перевозка техники',route:'Тель-Авив → Ришон-ле-Цион',when:'Сегодня, 20:30',price:'₪510',urgent:true},
+    {lat:31.780,lng:35.200,city:'Иерусалим',title:'Переезд квартиры',route:'Иерусалим → Модиин',when:'Завтра, 11:00',price:'₪940',urgent:false},
+    {lat:31.970,lng:34.790,city:'Ришон-ле-Цион',title:'Доставка дивана',route:'Ришон → Холон',when:'Сегодня, 17:45',price:'₪280',urgent:false},
+    {lat:31.245,lng:34.800,city:'Беэр-Шева',title:'Перевозка склада',route:'Беэр-Шева → Офаким',when:'Послезавтра, 08:00',price:'₪1250',urgent:true},
+    {lat:29.560,lng:34.960,city:'Эйлат',title:'Доставка мебели',route:'Эйлат → район Шахамон',when:'Завтра, 16:00',price:'₪390',urgent:false}
+  ];
+  function clearOld(){
+    if(!window.pcMap)return;
+    (window.pcLiveMarkers||[]).forEach(x=>{try{window.pcMap.removeLayer(x.m)}catch(e){}});
+    (window.pcOrderMarkers||[]).forEach(x=>{try{window.pcMap.removeLayer(x.m)}catch(e){}});
+    window.pcLiveMarkers=[];window.pcOrderMarkers=[];
+  }
+  function build(){
+    if(!window.pcMap||typeof L==='undefined')return false;
+    clearOld();
+    drivers.forEach(d=>{
+      const m=L.marker([d.lat,d.lng],{icon:truckIcon(d.status)}).bindPopup(driverPopup(d),{closeButton:true,maxWidth:260}).addTo(window.pcMap);
+      window.pcLiveMarkers.push({m,d});
+    });
+    orders.forEach(o=>{
+      const m=L.marker([o.lat,o.lng],{icon:jobIcon(o)}).bindPopup(orderPopup(o),{closeButton:true,maxWidth:260}).addTo(window.pcMap);
+      window.pcOrderMarkers.push({m,o});
+    });
+    window.pcMap.setView([CENTER.lat,CENTER.lng],9,{animate:false});
+    applyRadius();
+    return true;
+  }
+  function ensureRadiusInfo(){
+    const row=document.querySelector('.rangeRow'); if(!row)return;
+    let info=$('radiusInfo');
+    if(!info){info=document.createElement('div');info.id='radiusInfo';info.className='radiusInfo';info.innerHTML='<span>Показано в радиусе</span><b id="radiusFound"></b>';row.insertAdjacentElement('afterend',info)}
+  }
+  function applyRadius(){
+    if(!window.pcMap)return;
+    let dCount=0,oCount=0;
+    (window.pcLiveMarkers||[]).forEach(x=>{const show=km(CENTER,x.d)<=radiusKm;try{if(show){dCount++;if(!window.pcMap.hasLayer(x.m))x.m.addTo(window.pcMap)}else if(window.pcMap.hasLayer(x.m))window.pcMap.removeLayer(x.m)}catch(e){}});
+    (window.pcOrderMarkers||[]).forEach(x=>{const show=km(CENTER,x.o)<=radiusKm;try{if(show){oCount++;if(!window.pcMap.hasLayer(x.m))x.m.addTo(window.pcMap)}else if(window.pcMap.hasLayer(x.m))window.pcMap.removeLayer(x.m)}catch(e){}});
+    document.querySelectorAll('#pcRadiusText,.rangeRow b,#radiusValue,.radiusValue').forEach(el=>el.textContent=radiusKm+' км');
+    if($('radiusFound'))$('radiusFound').textContent=dCount+' машин · '+oCount+' заказов';
+    if($('nearCount'))$('nearCount').textContent=String(dCount);
+    const ai=document.querySelector('.aiCard b');if(ai)ai.textContent='AI нашёл '+dCount+' исполнителей рядом';
+  }
+  function bindSlider(){
+    ensureRadiusInfo();
+    document.querySelectorAll('input[type="range"]').forEach(s=>{
+      s.min=0;s.max=6;s.step=1;
+      if(!s.dataset.v7620){s.value=2;s.dataset.v7620='1'}
+      const handler=()=>{radiusKm=STEPS[Number(s.value)]||25;applyRadius()};
+      s.oninput=handler;s.onchange=handler;
+    });
+    radiusKm=25;applyRadius();
+  }
+  function boot(){
+    bindSlider();
+    let tries=0;const t=setInterval(()=>{tries++;if(build()||tries>12)clearInterval(t)},350);
+  }
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,2300));
+  setTimeout(boot,4200);
+})();
+</script>
+
+
+<style>
+/* v7621 — true location-centered radius radar */
+.pcRadarTabs{
+  display:grid!important;
+  grid-template-columns:1fr 1fr 1.25fr .85fr!important;
+  gap:7px!important;
+  margin:0 0 10px!important;
+}
+.pcRadarTabs button{
+  min-width:0!important;
+  height:47px!important;
+  border:1px solid var(--line)!important;
+  border-radius:18px!important;
+  background:#fff!important;
+  color:#172033!important;
+  font-size:12px!important;
+  line-height:1.05!important;
+  font-weight:950!important;
+  padding:4px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:4px!important;
+}
+.pcRadarTabs button.active{
+  background:#eaf6e4!important;
+  color:#2f7d25!important;
+  border-color:#beddaf!important;
+  box-shadow:none!important;
+}
+.pcRadarTabs .tabIcon{font-size:17px;line-height:1}
+.pcRadarTitle{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin:1px 5px 5px;
+  font-size:15px;
+  font-weight:950;
+}
+.pcRadarTitle b{color:#2f7d25;font-size:17px}
+.pcRadarScale{
+  display:flex;
+  justify-content:space-between;
+  margin:4px 5px 0;
+  color:#6b7280;
+  font-size:9px;
+  font-weight:900
+}
+.pcRadarSummary{
+  margin:7px 4px 0;
+  color:#667085;
+  font-size:11px;
+  font-weight:900;
+  text-align:center
+}
+.pcRadarSummary b{color:#2f7d25}
+.bottomSheet{
+  max-height:none!important;
+  overflow:visible!important;
+  padding:10px!important;
+}
+.bottomSheet .modeRow,
+.bottomSheet .filterRow,
+.bottomSheet .radiusTitle,
+.bottomSheet .radiusScale,
+.bottomSheet .radiusInfo{display:none!important}
+.bottomSheet .rangeRow{
+  display:block!important;
+  margin:0!important
+}
+.bottomSheet .rangeRow > span{display:none!important}
+.bottomSheet input[type=range]{
+  display:block!important;
+  width:100%!important;
+  margin:0!important;
+  accent-color:#4d8f31!important
+}
+.pcLocationNotice{
+  position:absolute;
+  left:16px;
+  right:16px;
+  top:calc(env(safe-area-inset-top) + 205px);
+  z-index:900;
+  border-radius:15px;
+  padding:9px 11px;
+  background:rgba(23,32,51,.9);
+  color:#fff;
+  font-size:11px;
+  font-weight:850;
+  text-align:center;
+  pointer-events:none;
+  opacity:0;
+  transition:.2s
+}
+.pcLocationNotice.show{opacity:1}
+</style>
+<script>
+(function(){
+  const RADII=[10,15,20,25,50,100];
+  let center={lat:32.7940,lng:34.9896};
+  let radius=25;
+  let mode='all';
+  let circle=null;
+  let meMarker=null;
+  let ready=false;
+
+  function byId(id){return document.getElementById(id)}
+  function distanceKm(a,b){
+    const R=6371, rad=x=>x*Math.PI/180;
+    const dLat=rad(b.lat-a.lat), dLng=rad(b.lng-a.lng);
+    const s=Math.sin(dLat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLng/2)**2;
+    return 2*R*Math.asin(Math.sqrt(s));
+  }
+  function notice(text){
+    let n=byId('pcLocationNotice');
+    if(!n){
+      n=document.createElement('div');
+      n.id='pcLocationNotice';
+      n.className='pcLocationNotice';
+      document.body.appendChild(n);
+    }
+    n.textContent=text;
+    n.classList.add('show');
+    clearTimeout(n._t);
+    n._t=setTimeout(()=>n.classList.remove('show'),2200);
+  }
+  function addToMap(marker){
+    try{
+      if(window.pcMap && !window.pcMap.hasLayer(marker)) marker.addTo(window.pcMap);
+    }catch(e){}
+  }
+  function removeFromMap(marker){
+    try{
+      if(window.pcMap && window.pcMap.hasLayer(marker)) window.pcMap.removeLayer(marker);
+    }catch(e){}
+  }
+  function getLatLng(item){
+    try{
+      const p=item.m.getLatLng();
+      return {lat:p.lat,lng:p.lng};
+    }catch(e){
+      const d=item.d||item.o||{};
+      return {lat:Number(d.lat)||0,lng:Number(d.lng)||0};
+    }
+  }
+  function isMine(item,index){
+    const d=item.d||{};
+    return Boolean(d.mine || d.isMine || index===0);
+  }
+  function ensureControls(){
+    const sheet=byId('bottomSheet');
+    if(!sheet) return false;
+    const content=sheet.querySelector('.sheetContent');
+    const range=sheet.querySelector('input[type="range"]');
+    if(!content || !range) return false;
+
+    let tabs=byId('pcRadarTabs');
+    if(!tabs){
+      tabs=document.createElement('div');
+      tabs.id='pcRadarTabs';
+      tabs.className='pcRadarTabs';
+      tabs.innerHTML=
+        '<button data-mode="all" class="active"><span class="tabIcon">🌐</span><span>Все</span></button>'+
+        '<button data-mode="orders"><span class="tabIcon">📦</span><span>Заказы</span></button>'+
+        '<button data-mode="drivers"><span class="tabIcon">🚚</span><span>Исполнители</span></button>'+
+        '<button data-mode="mine"><span class="tabIcon">🚛</span><span>Мои</span></button>';
+      content.insertBefore(tabs,content.firstChild);
+      tabs.querySelectorAll('button').forEach(btn=>{
+        btn.onclick=()=>{
+          mode=btn.dataset.mode;
+          tabs.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b===btn));
+          apply(false);
+        };
+      });
+    }
+
+    let title=byId('pcRadarTitle');
+    if(!title){
+      title=document.createElement('div');
+      title.id='pcRadarTitle';
+      title.className='pcRadarTitle';
+      title.innerHTML='<span>Радиус от моей точки</span><b id="pcRadarValue">25 км</b>';
+      range.parentElement.insertBefore(title,range);
+    }
+
+    let scale=byId('pcRadarScale');
+    if(!scale){
+      scale=document.createElement('div');
+      scale.id='pcRadarScale';
+      scale.className='pcRadarScale';
+      scale.innerHTML=RADII.map(v=>'<span>'+v+'</span>').join('');
+      range.insertAdjacentElement('afterend',scale);
+    }
+
+    let sum=byId('pcRadarSummary');
+    if(!sum){
+      sum=document.createElement('div');
+      sum.id='pcRadarSummary';
+      sum.className='pcRadarSummary';
+      scale.insertAdjacentElement('afterend',sum);
+    }
+
+    range.min='0'; range.max=String(RADII.length-1); range.step='1';
+    if(!range.dataset.trueRadar){
+      range.value='3';
+      range.dataset.trueRadar='1';
+    }
+    range.oninput=()=>{
+      radius=RADII[Number(range.value)]||25;
+      apply(true);
+    };
+    range.onchange=range.oninput;
+    return true;
+  }
+  function ensureMapObjects(){
+    if(!window.pcMap || typeof L==='undefined') return;
+    if(!circle){
+      circle=L.circle([center.lat,center.lng],{
+        radius:radius*1000,
+        color:'#4d8f31',
+        weight:2,
+        opacity:.8,
+        fillColor:'#68a94d',
+        fillOpacity:.10,
+        interactive:false
+      }).addTo(window.pcMap);
+    }
+    if(!meMarker){
+      const icon=L.divIcon({
+        className:'userLocIcon',
+        html:'<div class="userPulse"><div class="userDot"></div></div>',
+        iconSize:[54,54],
+        iconAnchor:[27,27]
+      });
+      meMarker=L.marker([center.lat,center.lng],{icon,zIndexOffset:2000,interactive:false}).addTo(window.pcMap);
+    }
+    circle.setLatLng([center.lat,center.lng]).setRadius(radius*1000);
+    meMarker.setLatLng([center.lat,center.lng]);
+  }
+  function fitRadius(){
+    if(!window.pcMap || !circle) return;
+    try{
+      window.pcMap.fitBounds(circle.getBounds(),{
+        paddingTopLeft:[24,205],
+        paddingBottomRight:[24,190],
+        animate:true,
+        duration:.35
+      });
+    }catch(e){}
+  }
+  function apply(shouldFit){
+    if(!ensureControls() || !window.pcMap) return;
+    ensureMapObjects();
+
+    let driverCount=0, orderCount=0, mineCount=0;
+    const drivers=window.pcLiveMarkers||[];
+    const orders=window.pcOrderMarkers||[];
+
+    drivers.forEach((item,index)=>{
+      const inside=distanceKm(center,getLatLng(item))<=radius;
+      const mine=isMine(item,index);
+      const visible=inside && (
+        mode==='all' || mode==='drivers' || (mode==='mine' && mine)
+      );
+      if(inside) driverCount++;
+      if(inside && mine) mineCount++;
+      visible ? addToMap(item.m) : removeFromMap(item.m);
+    });
+
+    orders.forEach(item=>{
+      const inside=distanceKm(center,getLatLng(item))<=radius;
+      const visible=inside && (mode==='all' || mode==='orders');
+      if(inside) orderCount++;
+      visible ? addToMap(item.m) : removeFromMap(item.m);
+    });
+
+    const val=byId('pcRadarValue');
+    if(val) val.textContent=radius+' км';
+
+    const summary=byId('pcRadarSummary');
+    if(summary){
+      const shown = mode==='orders' ? orderCount :
+                    mode==='drivers' ? driverCount :
+                    mode==='mine' ? mineCount :
+                    driverCount+orderCount;
+      summary.innerHTML='<b>'+shown+'</b> показано · '+driverCount+' исполнителей · '+orderCount+' заказов';
+    }
+
+    const stats=document.querySelectorAll('.topStats .stat');
+    if(stats.length>=3){
+      stats[0].querySelector('b').textContent=driverCount;
+      stats[0].querySelector('span').textContent='исполнителей';
+      stats[1].querySelector('b').textContent=orderCount;
+      stats[1].querySelector('span').textContent='заказов';
+      stats[2].querySelector('b').textContent=driverCount+orderCount;
+      stats[2].querySelector('span').textContent='в радиусе';
+    }
+    const ai=document.querySelector('.aiCard b');
+    if(ai) ai.textContent='AI: в радиусе '+radius+' км найдено '+orderCount+' заказов и '+driverCount+' исполнителей';
+
+    if(shouldFit) fitRadius();
+    ready=true;
+  }
+  function locate(){
+    if(!navigator.geolocation){
+      notice('Геолокация недоступна — используется центр Хайфы');
+      apply(true);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos=>{
+        center={lat:pos.coords.latitude,lng:pos.coords.longitude};
+        notice('Радар построен от вашей текущей точки');
+        apply(true);
+      },
+      ()=>{
+        notice('Не удалось получить геолокацию — используется центр Хайфы');
+        apply(true);
+      },
+      {enableHighAccuracy:true,timeout:8000,maximumAge:60000}
+    );
+  }
+  function boot(){
+    ensureControls();
+    let tries=0;
+    const timer=setInterval(()=>{
+      tries++;
+      if(window.pcMap && (window.pcLiveMarkers||[]).length){
+        clearInterval(timer);
+        apply(true);
+        locate();
+        
+      }else if(tries>30){
+        clearInterval(timer);
+      }
+    },300);
+  }
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,2600));
+  setTimeout(boot,4800);
+})();
+</script>
+
+
+<style>
+/* v7622 — one clear radius row */
+#pcRadarTitle,
+#pcRadarScale,
+.radiusTitle,
+.radiusScale{
+  display:none!important;
+}
+.bottomSheet .rangeRow{
+  display:flex!important;
+  align-items:center!important;
+  gap:12px!important;
+  margin:8px 3px 1px!important;
+}
+.bottomSheet .rangeRow > span{
+  display:block!important;
+  min-width:auto!important;
+  font-size:14px!important;
+  font-weight:950!important;
+}
+.bottomSheet .rangeRow > span:first-child{
+  color:#687386!important;
+}
+.bottomSheet .rangeRow > span:last-child{
+  min-width:52px!important;
+  text-align:right!important;
+  color:#2f7d25!important;
+}
+.bottomSheet .rangeRow input[type=range]{
+  flex:1!important;
+  width:auto!important;
+  margin:0!important;
+}
+</style>
+<script>
+(function(){
+  const values=[10,15,20,25,50,100];
+
+  function syncRadiusLabel(){
+    const slider=document.getElementById('radius');
+    const label=document.getElementById('radiusText');
+    if(!slider || !label) return;
+
+    let km;
+    const dynamic=document.getElementById('pcRadarValue');
+    if(dynamic && /\d+/.test(dynamic.textContent)){
+      km=parseInt(dynamic.textContent,10);
+    }else{
+      const i=Math.max(0,Math.min(values.length-1,Number(slider.value)||0));
+      km=values[i];
+    }
+    label.textContent=km+' км';
+  }
+
+  function install(){
+    const slider=document.getElementById('radius');
+    if(!slider) return false;
+
+    if(!slider.dataset.radiusLabelFix){
+      slider.dataset.radiusLabelFix='1';
+      slider.addEventListener('input',()=>setTimeout(syncRadiusLabel,0));
+      slider.addEventListener('change',()=>setTimeout(syncRadiusLabel,0));
+    }
+    syncRadiusLabel();
+    return true;
+  }
+
+  document.addEventListener('DOMContentLoaded',()=>{
+    let n=0;
+    const t=setInterval(()=>{
+      n++;
+      if(install() || n>40) clearInterval(t);
+    },250);
+  });
+
+  
+})();
+</script>
+
+
+<style>
+/* v7623 — remove duplicated legacy map filter row */
+#bottomSheet .modeRow,
+#bottomSheet .filterRow,
+#bottomSheet > .modeRow,
+#bottomSheet > .filterRow,
+#bottomSheet .sheetContent > .modeRow,
+#bottomSheet .sheetContent > .filterRow{
+  display:none!important;
+}
+
+/* Keep only the new true-radar tabs */
+#pcRadarTabs{
+  display:grid!important;
+}
+</style>
+<script>
+(function(){
+  function removeLegacyDuplicate(){
+    const sheet=document.getElementById('bottomSheet');
+    if(!sheet) return;
+
+    /* Remove old row containing Все / Мои / Исполнители / info */
+    sheet.querySelectorAll('.modeRow,.filterRow').forEach(el=>{
+      if(el.id!=='pcRadarTabs') el.remove();
+    });
+
+    /* Fallback for builds where old row has no stable class */
+    sheet.querySelectorAll('div').forEach(el=>{
+      if(el.id==='pcRadarTabs' || el.closest('#pcRadarTabs')) return;
+      const buttons=[...el.children].filter(c=>c.tagName==='BUTTON');
+      if(buttons.length<3 || buttons.length>5) return;
+      const text=buttons.map(b=>b.textContent.trim().toLowerCase()).join('|');
+      const legacy =
+        text.includes('все') &&
+        text.includes('мои') &&
+        text.includes('исполнител') &&
+        !text.includes('заказы');
+      if(legacy) el.remove();
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded',()=>{
+    setTimeout(removeLegacyDuplicate,100);
+    setTimeout(removeLegacyDuplicate,800);
+    setTimeout(removeLegacyDuplicate,1800);
+  });
+  setInterval(removeLegacyDuplicate,1800);
+})();
+</script>
+
+
+<style>
+/* v7624 — stable, static radar */
+.leaflet-marker-icon,
+.fbMarker{
+  transition:opacity .22s ease, transform .22s ease!important;
+}
+#pcRadarSummary{
+  min-width:0!important;
+  text-align:right!important;
+  font-size:11px!important;
+  line-height:1.35!important;
+}
+</style>
+<script>
+(function(){
+  const KNOWN_TIMERS=[
+    'pcAnimTimer','pcMoveTimer','fallbackTimer',
+    'pcMoveTimer7509','pcAiTimer7509'
+  ];
+  let frozen=false;
+  let applying=false;
+  let lastRadius=null;
+  let lastMode=null;
+  const fixedPositions=new WeakMap();
+
+  function stopMotionTimers(){
+    KNOWN_TIMERS.forEach(name=>{
+      try{
+        if(window[name]){
+          clearInterval(window[name]);
+          clearTimeout(window[name]);
+          window[name]=null;
+        }
+      }catch(e){}
+    });
+  }
+
+  function freezeMarker(marker){
+    if(!marker || fixedPositions.has(marker) || typeof marker.getLatLng!=='function') return;
+    const p=marker.getLatLng();
+    fixedPositions.set(marker,{lat:p.lat,lng:p.lng});
+    const original=marker.setLatLng.bind(marker);
+    marker.__pcOriginalSetLatLng=original;
+    marker.setLatLng=function(next){
+      if(this.__pcAllowPositionUpdate) return original(next);
+      const fixed=fixedPositions.get(this);
+      return fixed ? original([fixed.lat,fixed.lng]) : this;
+    };
+  }
+
+  function freezeAllMarkers(){
+    (window.pcLiveMarkers||[]).forEach(x=>freezeMarker(x && x.m));
+    (window.pcOrderMarkers||[]).forEach(x=>freezeMarker(x && x.m));
+    frozen=true;
+  }
+
+  function currentRadius(){
+    const slider=document.getElementById('radius');
+    const values=[10,15,20,25,50,100];
+    if(!slider) return 25;
+    return values[Math.max(0,Math.min(values.length-1,Number(slider.value)||0))] || 25;
+  }
+
+  function updateOnlyOnUserAction(){
+    const slider=document.getElementById('radius');
+    if(slider && !slider.dataset.stableBound){
+      slider.dataset.stableBound='1';
+      const stableHandler=()=>{
+        stopMotionTimers();
+        freezeAllMarkers();
+        const value=currentRadius();
+        const label=document.getElementById('radiusText');
+        if(label) label.textContent=value+' км';
+        lastRadius=value;
+      };
+      slider.addEventListener('input',stableHandler);
+      slider.addEventListener('change',stableHandler);
+    }
+
+    const tabs=document.getElementById('pcRadarTabs');
+    if(tabs && !tabs.dataset.stableBound){
+      tabs.dataset.stableBound='1';
+      tabs.addEventListener('click',()=>{
+        stopMotionTimers();
+        freezeAllMarkers();
+      });
+    }
+  }
+
+  function stabilize(){
+    stopMotionTimers();
+    freezeAllMarkers();
+    updateOnlyOnUserAction();
+
+    /* Remove animation rules left by the original demo. */
+    document.querySelectorAll('.fbMarker').forEach(el=>{
+      el.style.animation='none';
+      el.style.transition='opacity .22s ease';
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded',()=>{
+    setTimeout(stabilize,300);
+    setTimeout(stabilize,1200);
+    setTimeout(stabilize,2600);
+  });
+
+  /* A short startup guard only; no permanent redraw loop. */
+  let attempts=0;
+  const guard=setInterval(()=>{
+    attempts++;
+    stabilize();
+    if(attempts>=8){
+      clearInterval(guard);
+      stabilize();
+    }
+  },500);
+})();
+</script>
+
+
+<style>
+/* v7625 — compact radar panel + location button */
+#bottomSheet{
+  padding:8px 10px 10px!important;
+  border-radius:24px 24px 18px 18px!important;
+}
+#bottomSheet .sheetHandle{
+  margin:0 auto 7px!important;
+}
+#pcRadarTabs{
+  grid-template-columns:1fr 1fr 1.35fr .85fr!important;
+  gap:6px!important;
+  margin:0 0 8px!important;
+}
+#pcRadarTabs button{
+  height:42px!important;
+  border-radius:16px!important;
+  font-size:11px!important;
+  padding:3px!important;
+}
+#pcRadarTabs .tabIcon{
+  font-size:15px!important;
+}
+#pcRadarSummary{
+  display:none!important;
+}
+#bottomSheet .rangeRow{
+  display:flex!important;
+  align-items:center!important;
+  gap:9px!important;
+  margin:2px 2px 0!important;
+  min-height:34px!important;
+}
+#bottomSheet .rangeRow > span:first-child{
+  font-size:13px!important;
+  min-width:48px!important;
+}
+#bottomSheet .rangeRow > span:last-child{
+  font-size:14px!important;
+  min-width:50px!important;
+  color:#2f7d25!important;
+}
+#bottomSheet input[type=range]{
+  height:22px!important;
+}
+#pcRadarScale,
+#pcRadarTitle{
+  display:none!important;
+}
+#pcLocateBtn{
+  position:absolute;
+  right:18px;
+  bottom:calc(118px + env(safe-area-inset-bottom));
+  z-index:1100;
+  width:50px;
+  height:50px;
+  border-radius:50%;
+  border:1px solid rgba(55,110,42,.18);
+  background:#fff;
+  box-shadow:0 8px 22px rgba(24,55,20,.18);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+#pcLocateBtn:active{
+  transform:scale(.96);
+}
+#pcLocateBtn svg{
+  width:25px;
+  height:25px;
+  stroke:#4d8f31;
+  stroke-width:1.8;
+  fill:none;
+}
+</style>
+
+<script>
+(function(){
+  function ensureLocateButton(){
+    if(document.getElementById('pcLocateBtn')) return;
+    const btn=document.createElement('button');
+    btn.id='pcLocateBtn';
+    btn.type='button';
+    btn.setAttribute('aria-label','Показать моё местоположение');
+    btn.innerHTML=
+      '<svg viewBox="0 0 24 24" aria-hidden="true">'+
+        '<circle cx="12" cy="12" r="4"></circle>'+
+        '<circle cx="12" cy="12" r="8"></circle>'+
+        '<path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>'+
+      '</svg>';
+    document.body.appendChild(btn);
+
+    btn.addEventListener('click',()=>{
+      if(!navigator.geolocation){
+        alert('Геолокация недоступна');
+        return;
+      }
+      btn.disabled=true;
+      navigator.geolocation.getCurrentPosition(
+        pos=>{
+          const lat=pos.coords.latitude;
+          const lng=pos.coords.longitude;
+
+          try{
+            if(window.pcMap){
+              window.pcMap.setView([lat,lng],15,{animate:true});
+            }
+          }catch(e){}
+
+          try{
+            if(window.meMarker){
+              window.meMarker.__pcAllowPositionUpdate=true;
+              window.meMarker.setLatLng([lat,lng]);
+              window.meMarker.__pcAllowPositionUpdate=false;
+            }
+          }catch(e){}
+
+          try{
+            if(window.circle){
+              window.circle.setLatLng([lat,lng]);
+            }
+          }catch(e){}
+
+          btn.disabled=false;
+        },
+        ()=>{
+          alert('Не удалось определить местоположение');
+          btn.disabled=false;
+        },
+        {enableHighAccuracy:true,timeout:8000,maximumAge:30000}
+      );
+    });
+  }
+
+  function compactCleanup(){
+    const summary=document.getElementById('pcRadarSummary');
+    if(summary) summary.style.display='none';
+
+    /* Remove any duplicated count text accidentally injected into range area */
+    const sheet=document.getElementById('bottomSheet');
+    if(sheet){
+      sheet.querySelectorAll('.rangeInfo,.radiusInfo,.pcRadarSummary').forEach(el=>{
+        if(el.id!=='pcRadarSummary') el.remove();
+      });
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded',()=>{
+    setTimeout(ensureLocateButton,250);
+    setTimeout(compactCleanup,300);
+    setTimeout(compactCleanup,1200);
+  });
+})();
+</script>
+
+</body>
+</html>
+<style>
+/* v7503: fixed compact map panel, no title, no duplicate buttons */
+.bottomSheet{
+  bottom:calc(env(safe-area-inset-bottom) + 2px)!important;
+  max-height:none!important;
+  padding:8px 10px 10px!important;
+  overflow:visible!important;
+}
+.bottomSheet.open{max-height:none!important}
+.handle{margin:0 auto 8px!important}
+.sheetTitle{display:none!important}
+.sheetContent{display:block!important;margin-top:0!important}
+.bottomSheet:not(.open) .sheetContent{display:block!important}
+.ctaRow{display:none!important}
+.modeRow{margin-top:0!important}
+.filterRow{margin-top:8px!important}
+.rangeRow{margin-top:8px!important}
+</style>
