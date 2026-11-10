@@ -1,0 +1,1 @@
+const KEY='crypto-tower-pixel-v1-best';export function getBest(){try{return Number(localStorage.getItem(KEY))||0}catch{return 0}}export function saveBest(v){try{if(v>getBest())localStorage.setItem(KEY,String(v))}catch{}}
