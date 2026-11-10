@@ -1,8 +1,13 @@
-CRYPTO TOWER — Pixel City
+CRYPTO TOWER — SUNSET CITY
+Полная автономная версия игры.
 
-1. Распакуйте ZIP.
-2. Загрузите index.html в корень репозитория GitHub azatdron/crypto-tower.
-3. GitHub: Settings > Pages > Deploy from a branch > main > /(root) > Save.
-4. Игра: https://azatdron.github.io/crypto-tower/
+Содержимое:
+index.html — вся игра целиком: HTML + CSS + JavaScript + графика + управление + рекорды.
 
-Игра бесплатная, без реальных денег. Работает автономно, рекорд хранится на устройстве. Telegram Mini App можно подключить после публикации HTTPS-сайта через BotFather.
+Установка GitHub Pages:
+1. Откройте репозиторий azatdron/crypto-tower.
+2. Сохраните резервную копию старого index.html.
+3. Замените файл index.html в корне репозитория новым index.html из этого архива.
+4. Commit changes. Откройте https://azatdron.github.io/crypto-tower/
+
+Другие файлы, библиотеки и интернет для работы игры не нужны.
